@@ -32,7 +32,7 @@ private import derelict.util.system;
 static if( Derelict_OS_Mac ) {
     private {
         import derelict.util.loader;
-        import derelict.opengl3.types;
+        import derelict.opengl.types;
     }
 
     struct _CGLContextObject;

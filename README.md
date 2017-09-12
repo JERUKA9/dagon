@@ -4,7 +4,7 @@ Dagon is a 3D/2D game development framework for D. It is a work-in-progress rein
 
 This branch is an attempt to port Dagon to modern OpenGL. Current target is OpenGL 3.3.
 
-Ported features:
+Implemented features:
 * Core infrastructure, application and scenes creation
 * Loading textures
 * Rendering meshes with VAO/VBO
