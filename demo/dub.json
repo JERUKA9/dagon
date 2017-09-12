@@ -1,0 +1,34 @@
+{
+    "name": "dagondemo",
+    "description": "Dagon demo application",
+    "homepage": "https://github.com/gecko0307/dagon",
+    "license": "Boost",
+    "authors": [
+        "Timur Gafarov"
+    ],
+
+    "importPaths": [
+        "src",
+        "../src"
+    ],
+
+    "dependencies": {
+        "dlib": "0.11.1"
+    },
+
+    "buildRequirements":[
+        "allowWarnings"
+    ],
+
+    "configurations": [
+        {
+            "name": "demo",
+            "targetType": "executable",
+            "sourcePaths": ["src", "../src"],
+            "mainSourceFile": "src/main.d",
+            "lflags-windows-x86-dmd": ["/SUBSYSTEM:WINDOWS:5.01"],
+            "lflags-windows-x86_64-dmd": ["/SUBSYSTEM:WINDOWS:5.02"]
+        }
+    ]
+}
+
