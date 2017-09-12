@@ -8,6 +8,7 @@ Ported features:
 * Core infrastructure, application and scenes creation
 * Loading textures
 * Rendering meshes with VAO/VBO
+* OBJ models loading
 * Plane shape
 * Skeleton GLSL material backend
 * Freeview

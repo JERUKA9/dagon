@@ -100,8 +100,7 @@ class Texture: Owner
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
-        int numMipmapLevels = cast(int)log2(fmax(width, height)) + 1;
-        writefln("numMipmapLevels: %s", numMipmapLevels);
+        numMipmapLevels = cast(int)log2(fmax(width, height)) + 1;
        
         glTexImage2D(GL_TEXTURE_2D, 0, intFormat, width, height, 0, format, type, cast(void*)img.data.ptr);
 

@@ -1,5 +1,6 @@
 module dagon.graphics.mesh;
 
+import dlib.core.memory;
 import dlib.geometry.triangle;
 import dlib.math.vector;
 import derelict.opengl.gl;
@@ -22,7 +23,12 @@ class Mesh: Owner, Drawable
     Vector3f[] normals;
     Vector2f[] texcoords;
     uint[3][] indices;
+    
     GLuint vao = 0;
+    GLuint vbo = 0;
+    GLuint nbo = 0;
+    GLuint tbo = 0;
+    GLuint eao = 0;
     
     this(Owner o)
     {
@@ -31,30 +37,38 @@ class Mesh: Owner, Drawable
     
     ~this()
     {
+        if (vertices.length) Delete(vertices);
+        if (normals.length) Delete(normals);
+        if (texcoords.length) Delete(texcoords);
+        if (indices.length) Delete(indices);
+        
+        if (canRender)
+        {
+            glDeleteVertexArrays(1, &vao);
+            glDeleteBuffers(1, &vbo);
+            glDeleteBuffers(1, &nbo);
+            glDeleteBuffers(1, &tbo);
+            glDeleteBuffers(1, &eao);
+        }
     }
     
     void prepareVAO()
     {
         if (!dataReady)
             return;
-            
-        // Create a vertex array with all attributes
-        GLuint vbo;
+
         glGenBuffers(1, &vbo);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, vertices.length * float.sizeof * 3, vertices.ptr, GL_STATIC_DRAW); 
-    
-        GLuint nbo;
+
         glGenBuffers(1, &nbo);
         glBindBuffer(GL_ARRAY_BUFFER, nbo);
         glBufferData(GL_ARRAY_BUFFER, normals.length * float.sizeof * 3, normals.ptr, GL_STATIC_DRAW);
-    
-        GLuint tbo;
+
         glGenBuffers(1, &tbo);
         glBindBuffer(GL_ARRAY_BUFFER, tbo);
         glBufferData(GL_ARRAY_BUFFER, texcoords.length * float.sizeof * 2, texcoords.ptr, GL_STATIC_DRAW);
 
-        GLuint eao;
         glGenBuffers(1, &eao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eao);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.length * uint.sizeof * 3, indices.ptr, GL_STATIC_DRAW);

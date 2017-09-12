@@ -22,6 +22,7 @@ public
     import dagon.resource.asset;
     import dagon.resource.textasset;
     import dagon.resource.textureasset;
+    import dagon.resource.obj;
 
     import dagon.logics.entity;
     import dagon.logics.controller;
