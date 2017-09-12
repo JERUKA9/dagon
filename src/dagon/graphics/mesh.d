@@ -89,7 +89,7 @@ class Mesh: Owner, Drawable
         if (canRender)
         {
             glBindVertexArray(vao);
-            glDrawElements(GL_TRIANGLES, indices.length * 3, GL_UNSIGNED_INT, cast(void*)0);
+            glDrawElements(GL_TRIANGLES, cast(uint)indices.length * 3, GL_UNSIGNED_INT, cast(void*)0);
             glBindVertexArray(0);
         }
     }
