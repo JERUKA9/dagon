@@ -9,8 +9,8 @@ import core.stdc.stdlib;
 
 import derelict.sdl2.sdl;
 import derelict.opengl.gl;
-import derelict.opengl.glu;
-import derelict.freetype.ft;
+//import derelict.opengl.glu;
+//import derelict.freetype.ft;
 
 import dagon.core.event;
 
@@ -47,25 +47,25 @@ class Application: EventListener
         }
 
         DerelictGL.load();
-        DerelictGLU.load();
+        //DerelictGLU.load();
         if (libdir.length)
         {
             version(linux)
             {
                 DerelictSDL2.load(format("%s/libSDL2-2.0.so", libdir));
-                DerelictFT.load(format("%s/libfreetype.so", libdir));
+                //DerelictFT.load(format("%s/libfreetype.so", libdir));
             }
             version(Windows)
             {
                 version(X86)
                 {
                     DerelictSDL2.load(format("%s/SDL2.dll", libdir));
-                    DerelictFT.load(format("%s/freetype.dll", libdir));
+                    //DerelictFT.load(format("%s/freetype.dll", libdir));
                 }
                 version(X86_64)
                 {
                     DerelictSDL2.load(format("%s/SDL2_64.dll", libdir));
-                    DerelictFT.load(format("%s/freetype_64.dll", libdir));
+                    //DerelictFT.load(format("%s/freetype_64.dll", libdir));
                 }
             }
         }
@@ -80,10 +80,10 @@ class Application: EventListener
                     else
                         DerelictSDL2.load();
 
-                    if (exists("lib/libfreetype271.so"))
-                        DerelictFT.load("lib/libfreetype271.so");
-                    else
-                        DerelictFT.load();
+                    //if (exists("lib/libfreetype271.so"))
+                    //    DerelictFT.load("lib/libfreetype271.so");
+                    //else
+                    //    DerelictFT.load();
                 }
                 version(X86_64)
                 {
@@ -92,10 +92,10 @@ class Application: EventListener
                     else
                         DerelictSDL2.load();
 
-                    if (exists("lib/libfreetype263_64.so"))
-                        DerelictFT.load("lib/libfreetype263_64.so");
-                    else
-                        DerelictFT.load();
+                    //if (exists("lib/libfreetype263_64.so"))
+                    //    DerelictFT.load("lib/libfreetype263_64.so");
+                    //else
+                    //    DerelictFT.load();
                 }
             }
             version(Windows)
@@ -107,10 +107,10 @@ class Application: EventListener
                     else
                         DerelictSDL2.load();
 
-                    if (exists("lib/freetype271.dll"))
-                        DerelictFT.load("lib/freetype271.dll");
-                    else
-                        DerelictFT.load();
+                    //if (exists("lib/freetype271.dll"))
+                    //    DerelictFT.load("lib/freetype271.dll");
+                    //else
+                    //    DerelictFT.load();
                 }
                 version(X86_64)
                 {
@@ -119,10 +119,10 @@ class Application: EventListener
                     else
                         DerelictSDL2.load();
 
-                    if (exists("lib/freetype271_64.dll"))
-                        DerelictFT.load("lib/freetype271_64.dll");
-                    else
-                        DerelictFT.load();
+                    //if (exists("lib/freetype271_64.dll"))
+                    //    DerelictFT.load("lib/freetype271_64.dll");
+                   // else
+                    //    DerelictFT.load();
                 }
             }
         }
@@ -130,24 +130,26 @@ class Application: EventListener
         version(FreeBSD)
         {
             DerelictSDL2.load();
-            DerelictFT.load();
+            //DerelictFT.load();
         }
 
         version(OSX)
         {
             DerelictSDL2.load();
-            DerelictFT.load();
+            //DerelictFT.load();
         }
 
         if (SDL_Init(SDL_INIT_EVERYTHING) == -1)
             exitWithError("Failed to init SDL: " ~ to!string(SDL_GetError()));
         
-        SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
-	    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-	    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);        
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+        SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     
         width = w;
         height = h;
@@ -159,8 +161,14 @@ class Application: EventListener
             
         glcontext = SDL_GL_CreateContext(window);
 
-        DerelictGL.loadClassicVersions(GLVersion.GL21);
-        DerelictGL.loadExtensions();
+        GLVersion loadedVersion = DerelictGL.reload(GLVersion.GL33);
+        writeln("OpenGL version loaded: ", loadedVersion);
+        if (loadedVersion < GLVersion.GL33)
+        {
+            exitWithError("Sorry, Dagon requires OpenGL 3.3!");
+        }
+        
+        SDL_GL_MakeCurrent(window, glcontext);
             
         EventManager eventManager = new EventManager(window, width, height);
         super(eventManager, null);
@@ -170,8 +178,7 @@ class Application: EventListener
         glClearDepth(1.0);
         glDepthFunc(GL_LESS);
         glEnable(GL_DEPTH_TEST);
-
-        glEnable(GL_POLYGON_OFFSET_FILL);
+        //glEnable(GL_POLYGON_OFFSET_FILL);
         
         checkGLError();
     }

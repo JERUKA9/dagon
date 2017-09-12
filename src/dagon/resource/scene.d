@@ -17,7 +17,6 @@ import dagon.core.application;
 import dagon.resource.asset;
 import dagon.resource.textasset;
 import dagon.resource.textureasset;
-import dagon.resource.fontasset;
 import dagon.graphics.rc;
 
 class Scene: EventListener
@@ -78,7 +77,7 @@ class Scene: EventListener
         }
         return tex;
     }
-
+/*
     FontAsset addFontAsset(string filename, uint height, bool preload = false)
     {
         FontAsset font;
@@ -91,7 +90,7 @@ class Scene: EventListener
         }
         return font;
     }
-
+*/
     void onAssetsRequest()
     {
         // Add your assets here
@@ -100,7 +99,7 @@ class Scene: EventListener
     void onLoading(float percentage)
     {
         // Render your loading screen here
-
+/*
         glDisable(GL_DEPTH_TEST);
 
         glViewport(0, 0, eventManager.windowWidth, eventManager.windowHeight);
@@ -123,6 +122,7 @@ class Scene: EventListener
         glVertex2f(w - margin, margin);
         glVertex2f(w - margin, 10);
         glEnd();
+*/
     }
 
     void onAllocate()

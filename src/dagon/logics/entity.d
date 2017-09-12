@@ -145,15 +145,14 @@ class Entity: Owner
                 ble.behaviour.bind();
         }
 
-        glPushMatrix();
-        glMultMatrixf(transformation.arrayof.ptr);
-
         rcLocal = *rc;
         rcLocal.position = position;
         rcLocal.rotation = rotation.toMatrix3x3;
         rcLocal.scaling = scaling;
         rcLocal.modelMatrix = transformation;
         rcLocal.invModelMatrix = invTransformation;
+        rcLocal.modelViewMatrix = rcLocal.viewMatrix * rcLocal.modelMatrix;
+        rcLocal.normalMatrix = rcLocal.modelViewMatrix.inverse.transposed;
 
         if (rcLocal.overrideMaterial)
             rcLocal.overrideMaterial.bind(&rcLocal);
@@ -161,7 +160,7 @@ class Entity: Owner
             material.bind(&rcLocal);
 
         if (drawable)
-            drawable.render(rc);
+            drawable.render(&rcLocal);
 
         if (rcLocal.overrideMaterial)
             rcLocal.overrideMaterial.bind(&rcLocal);
@@ -171,10 +170,8 @@ class Entity: Owner
         foreach(i, ble; behaviours)
         {
             if (ble.valid)
-                ble.behaviour.render(rc);
+                ble.behaviour.render(&rcLocal);
         }
-
-        glPopMatrix();
 
         foreach_reverse(i, ble; behaviours.data)
         {

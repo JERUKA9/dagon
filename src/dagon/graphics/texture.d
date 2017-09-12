@@ -1,9 +1,9 @@
 module dagon.graphics.texture;
 
 import std.stdio;
+import std.math;
 
 import derelict.opengl.gl;
-import derelict.opengl.glu;
 
 import dlib.core.memory;
 import dlib.image.image;
@@ -13,11 +13,17 @@ import dagon.core.ownership;
 
 class Texture: Owner
 {
+    SuperImage image;
+    
     GLuint tex;
     GLenum format;
+    GLint intFormat;
     GLenum type;
+    
     int width;
     int height;
+    int numMipmapLevels;
+    
     Vector2f translation;
     Vector2f scale;
     float rotation;
@@ -30,6 +36,7 @@ class Texture: Owner
         rotation = 0.0f;
     }
 
+/*
     this(uint w, uint h, Owner o)
     {
         super(o);
@@ -49,8 +56,8 @@ class Texture: Owner
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
 
-
-    this(SuperImage img, Owner o, bool genMipmaps = true)
+*/
+    this(SuperImage img, Owner o, bool genMipmaps = false)
     {
         super(o);
         translation = Vector2f(0.0f, 0.0f);
@@ -59,15 +66,16 @@ class Texture: Owner
         createFromImage(img, genMipmaps);
     }
 
-    void createFromImage(SuperImage img, bool genMipmaps = true)
+    void createFromImage(SuperImage img, bool genMipmaps = false)
     {
+        image = img;
+    
         if (glIsTexture(tex))
             glDeleteTextures(1, &tex);
 
         width = img.width;
         height = img.height;
 
-        GLint intFormat;
         type = GL_UNSIGNED_BYTE;
 
         switch (img.pixelFormat)
@@ -82,52 +90,38 @@ class Texture: Owner
         }
 
         glGenTextures(1, &tex);
+        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, tex);
 
-        if (genMipmaps)
-        {
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        }
-        else
-        {
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        }
-
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
-        gluBuild2DMipmaps(GL_TEXTURE_2D,
-            intFormat, width, height, format,
-            type, cast(void*)img.data.ptr);
+        int numMipmapLevels = cast(int)log2(fmax(width, height)) + 1;
+        writefln("numMipmapLevels: %s", numMipmapLevels);
+       
+        glTexImage2D(GL_TEXTURE_2D, 0, intFormat, width, height, 0, format, type, cast(void*)img.data.ptr);
+
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, numMipmapLevels-1);
+        glTexStorage2D(GL_TEXTURE_2D, numMipmapLevels, intFormat, width, height);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     void bind()
     {
-        glEnable(GL_TEXTURE_2D);
         if (glIsTexture(tex))
             glBindTexture(GL_TEXTURE_2D, tex);
-        glMatrixMode(GL_TEXTURE);
-        glPushMatrix();
-        glLoadIdentity();
-        glTranslatef(translation.x, translation.y, 0);
-        glRotatef(rotation, 0.0f, 0.0f, 1.0f);
-        glScalef(scale.x, scale.y, 0);
-        glMatrixMode(GL_MODELVIEW);
     }
 
     void unbind()
     {
-        glMatrixMode(GL_TEXTURE);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-
         glBindTexture(GL_TEXTURE_2D, 0);
-        glDisable(GL_TEXTURE_2D);
     }
     
     bool valid()
@@ -144,13 +138,6 @@ class Texture: Owner
     ~this()
     {
         release();
-    }
-
-    void copyRendered()
-    {
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
-        glBindTexture(GL_TEXTURE_2D, 0);
     }
 }
 

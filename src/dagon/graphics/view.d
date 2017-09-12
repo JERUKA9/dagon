@@ -15,7 +15,8 @@ interface View
     {
         rc.viewMatrix = viewMatrix();
         rc.invViewMatrix = invViewMatrix();
-        rc.normalMatrix = matrix4x4to3x3(rc.invViewMatrix).transposed;
+        rc.modelViewMatrix = rc.viewMatrix;
+        rc.normalMatrix = rc.invViewMatrix.transposed;
         rc.cameraPosition = cameraPosition();
     }
 }

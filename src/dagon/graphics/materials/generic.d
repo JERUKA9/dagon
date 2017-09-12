@@ -1,16 +1,13 @@
 module dagon.graphics.materials.generic;
 
+import std.stdio;
 import dlib.core.memory;
 import dlib.math.vector;
 import dlib.image.color;
 import derelict.opengl.gl;
-import derelict.opengl.glext;
 import dagon.core.ownership;
 import dagon.graphics.material;
-import dagon.graphics.materials.fixed;
 import dagon.graphics.rc;
-
-// TODO: output modes
 
 interface GenericMaterialBackend
 {
@@ -37,9 +34,8 @@ enum int SF_PCF5 = 2;
 class GenericMaterial: Material
 {
     protected GenericMaterialBackend _backend;
-    protected FixedPipelineBackend fixedBackend;
 
-    this(Owner o)
+    this(GenericMaterialBackend backend, Owner o)
     {
         super(o);
 
@@ -60,8 +56,7 @@ class GenericMaterial: Material
         setInput("shadowFilter", SF_None);
         setInput("fogEnabled", true);
 
-        fixedBackend = New!FixedPipelineBackend(this);
-        _backend = fixedBackend;
+        _backend = backend;
     }
 
     GenericMaterialBackend backend()
@@ -84,5 +79,69 @@ class GenericMaterial: Material
     {
         if (_backend)
             _backend.unbind(this);
+    }
+}
+
+abstract class GLSLMaterialBackend: Owner, GenericMaterialBackend
+{
+    string vertexShaderSrc();
+    string fragmentShaderSrc();
+    
+    GLuint shaderProgram;
+    GLuint vertexShader;
+    GLuint fragmentShader;
+    
+    this(Owner o)
+    {
+        super(o);
+        
+        const(char*)pvs = vertexShaderSrc().ptr;
+        const(char*)pfs = fragmentShaderSrc().ptr;
+        
+        char[1000] infobuffer = 0;
+        int infobufferlen = 0;
+
+        vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertexShader, 1, &pvs, null);
+        glCompileShader(vertexShader);
+        GLint success = 0;
+        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+        if (!success)
+        {
+            GLint logSize = 0;
+            glGetShaderiv(vertexShader, GL_INFO_LOG_LENGTH, &logSize);
+            glGetShaderInfoLog(vertexShader, 999, &logSize, infobuffer.ptr);
+            writeln("Error in vertex shader:");
+            writeln(infobuffer[0..logSize]);
+        }
+
+        fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragmentShader, 1, &pfs, null);
+        glCompileShader(fragmentShader);
+        success = 0;
+        glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+        if (!success)
+        {
+            GLint logSize = 0;
+            glGetShaderiv(fragmentShader, GL_INFO_LOG_LENGTH, &logSize);
+            glGetShaderInfoLog(fragmentShader, 999, &logSize, infobuffer.ptr);
+            writeln("Error in fragment shader:");
+            writeln(infobuffer[0..logSize]);
+        }
+
+        shaderProgram = glCreateProgram();
+        glAttachShader(shaderProgram, vertexShader);
+        glAttachShader(shaderProgram, fragmentShader);
+        glLinkProgram(shaderProgram);
+    }
+    
+    void bind(GenericMaterial mat, RenderingContext* rc)
+    {
+        glUseProgram(shaderProgram);
+    }
+    
+    void unbind(GenericMaterial mat)
+    {
+        glUseProgram(0);
     }
 }

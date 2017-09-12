@@ -9,7 +9,6 @@ import dlib.container.array;
 import derelict.opengl.gl;
 
 import dagon.resource.scene;
-import dagon.graphics.light;
 import dagon.graphics.environment;
 import dagon.graphics.rc;
 import dagon.graphics.view;
@@ -19,7 +18,6 @@ import std.stdio;
 
 class BaseScene3D: Scene
 {
-    LightManager lightManager;
     Environment environment;
 
     RenderingContext rc3d; 
@@ -47,20 +45,12 @@ class BaseScene3D: Scene
     Entity createEntity3D()
     {
         Entity e = New!Entity(eventManager, assetManager);
-        auto lr = New!LightReceiver(e, lightManager);
         entities3D.append(e);
         return e;
     }
 
-    Light addPointLight(Vector3f position, Color4f color)
-    {
-        Light light = lightManager.addPointLight(position, color);
-        return light;
-    }
-
     override void onAllocate()
     {    
-        lightManager = New!LightManager(assetManager);
         environment = New!Environment(assetManager);
     }
     
@@ -133,7 +123,6 @@ class BaseScene3D: Scene
     {
         glEnable(GL_SCISSOR_TEST);
         glScissor(0, 0, eventManager.windowWidth, eventManager.windowHeight);
-
         glViewport(0, 0, eventManager.windowWidth, eventManager.windowHeight);
         glClearColor(environment.backgroundColor.r, environment.backgroundColor.g, environment.backgroundColor.b, environment.backgroundColor.a);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
