@@ -12,5 +12,6 @@ Implemented features:
 * Plane shape
 * Skeleton GLSL material backend
 * Freeview
+* First person view
 
 [![Screenshot1](/screenshots/imrod-thumb.jpg)](/screenshots/imrod.jpg)

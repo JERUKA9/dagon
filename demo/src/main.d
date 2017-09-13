@@ -248,6 +248,8 @@ class TestScene: BaseScene3D
     OBJAsset obj;
     
     SimpleBackend sb;
+    
+    FirstPersonView fpview;
 
     this(SceneManager smngr)
     {
@@ -271,9 +273,13 @@ class TestScene: BaseScene3D
     {
         super.onAllocate();
         
-        auto freeview = New!Freeview(eventManager, assetManager);
-        freeview.setZoom(15.0f);
-        view = freeview;
+        fpview = New!FirstPersonView(eventManager, Vector3f(10.0f, 3.0f, 0.0f), assetManager);
+        fpview.camera.turn = -90.0f;
+        view = fpview;
+        
+        //auto freeview = New!Freeview(eventManager, assetManager);
+        //freeview.setZoom(15.0f);
+        //view = freeview;
         
         sb = New!SimpleBackend(assetManager);
         
@@ -297,6 +303,38 @@ class TestScene: BaseScene3D
         ePlane.material = mat2;
         
         environment.backgroundColor = Color4f(0.2f, 0.2f, 0.2f, 1.0f);
+    }
+    
+    override void onMouseButtonDown(int button)
+    {
+        if (button == MB_LEFT)
+        {
+            if (fpview.active)
+                fpview.active = false;
+            else
+                fpview.active = true;
+        }
+    }
+    
+    void controlCharacter(double dt)
+    {
+        Vector3f forward = fpview.camera.characterMatrix.forward;
+        Vector3f right = fpview.camera.characterMatrix.right; 
+        float speed = 8.0f;
+        Vector3f dir = Vector3f(0, 0, 0);
+        if (eventManager.keyPressed[KEY_W]) dir += -forward;
+        if (eventManager.keyPressed[KEY_S]) dir += forward;
+        if (eventManager.keyPressed[KEY_A]) dir += -right;
+        if (eventManager.keyPressed[KEY_D]) dir += right;
+        fpview.camera.position += dir * speed * dt;
+        //character.move(dir.normalized, speed);
+        //if (eventManager.keyPressed[KEY_SPACE]) character.jump(2.0f);
+        //character.update();
+    }
+    
+    override void onLogicsUpdate(double dt)
+    {  
+        controlCharacter(dt);
     }
     
     override void onRelease()
