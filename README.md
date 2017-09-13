@@ -13,5 +13,6 @@ Implemented features:
 * Skeleton GLSL material backend
 * Freeview
 * First person view
+* TTF fonts and text rendering
 
 [![Screenshot1](/screenshots/imrod-thumb.jpg)](/screenshots/imrod.jpg)

@@ -1,10 +1,10 @@
-module main;
+﻿module main;
 
 import std.stdio;
 
 import dagon;
 
-class SimpleBackend: GLSLMaterialBackend
+class BlinnPhongBackend: GLSLMaterialBackend
 {
     string vsText = 
     q{
@@ -238,6 +238,8 @@ class SimpleBackend: GLSLMaterialBackend
 
 class TestScene: BaseScene3D
 {
+    FontAsset aFont;
+
     TextureAsset aTexImrodDiffuse;
     TextureAsset aTexImrodNormal;
     
@@ -247,7 +249,7 @@ class TestScene: BaseScene3D
     
     OBJAsset obj;
     
-    SimpleBackend sb;
+    BlinnPhongBackend bpb;
     
     FirstPersonView fpview;
 
@@ -258,6 +260,8 @@ class TestScene: BaseScene3D
 
     override void onAssetsRequest()
     {
+        aFont = addFontAsset("data/font/DroidSans.ttf", 14);
+    
         aTexImrodDiffuse = addTextureAsset("data/obj/imrod-diffuse.png");
         aTexImrodNormal = addTextureAsset("data/obj/imrod-normal.png");
         
@@ -277,30 +281,31 @@ class TestScene: BaseScene3D
         fpview.camera.turn = -90.0f;
         view = fpview;
         
-        //auto freeview = New!Freeview(eventManager, assetManager);
-        //freeview.setZoom(15.0f);
-        //view = freeview;
+        bpb = New!BlinnPhongBackend(assetManager);
         
-        sb = New!SimpleBackend(assetManager);
-        
-        auto mat1 = New!GenericMaterial(sb, assetManager);
+        auto mat1 = New!GenericMaterial(bpb, assetManager);
         mat1.diffuse = aTexImrodDiffuse.texture;
         mat1.normal = aTexImrodNormal.texture;
         
-        auto mat2 = New!GenericMaterial(sb, assetManager);
+        auto mat2 = New!GenericMaterial(bpb, assetManager);
         mat2.diffuse = aTexStoneDiffuse.texture;
         mat2.normal = aTexStoneNormal.texture;
         mat2.height = aTexStoneHeight.texture;
         
-        Entity e = New!Entity(eventManager, assetManager);
-        entities3D.append(e);
+        Entity e = createEntity3D();
         e.drawable = obj.mesh;
         e.material = mat1;
         
-        Entity ePlane = New!Entity(eventManager, assetManager);
-        entities3D.append(ePlane);
+        Entity ePlane = createEntity3D();
         ePlane.drawable = New!ShapePlane(8, 8, 2, assetManager);
         ePlane.material = mat2;
+        
+        auto text = New!TextLine(aFont.font, "Hello, World! Привет, мир!", assetManager);
+        text.color = Color4f(1.0f, 1.0f, 0.0f, 0.5f);
+        
+        auto eText = createEntity2D();
+        eText.drawable = text;
+        eText.position = Vector3f(16.0f, eventManager.windowHeight - 30.0f, 0.0f);
         
         environment.backgroundColor = Color4f(0.2f, 0.2f, 0.2f, 1.0f);
     }
@@ -327,9 +332,6 @@ class TestScene: BaseScene3D
         if (eventManager.keyPressed[KEY_A]) dir += -right;
         if (eventManager.keyPressed[KEY_D]) dir += right;
         fpview.camera.position += dir * speed * dt;
-        //character.move(dir.normalized, speed);
-        //if (eventManager.keyPressed[KEY_SPACE]) character.jump(2.0f);
-        //character.update();
     }
     
     override void onLogicsUpdate(double dt)

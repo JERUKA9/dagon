@@ -23,6 +23,7 @@ public
     import dagon.resource.textasset;
     import dagon.resource.textureasset;
     import dagon.resource.obj;
+    import dagon.resource.fontasset;
 
     import dagon.logics.entity;
     import dagon.logics.controller;
@@ -42,6 +43,10 @@ public
     import dagon.graphics.view;
     
     import dagon.graphics.materials.generic;
+    
+    import dagon.ui.font;
+    import dagon.ui.ftfont;
+    import dagon.ui.textline;
 
     import dagon.templates.basescene;
 }
