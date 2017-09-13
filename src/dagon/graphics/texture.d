@@ -80,10 +80,10 @@ class Texture: Owner
 
         switch (img.pixelFormat)
         {
-            case PixelFormat.L8:     intFormat = GL_LUMINANCE8;        format = GL_LUMINANCE; break;
-            case PixelFormat.LA8:    intFormat = GL_LUMINANCE8_ALPHA8; format = GL_LUMINANCE_ALPHA; break;
-            case PixelFormat.RGB8:   intFormat = GL_RGB8;              format = GL_RGB; break;
-            case PixelFormat.RGBA8:  intFormat = GL_RGBA8;             format = GL_RGBA; break;
+            case PixelFormat.L8:     intFormat = GL_R8;     format = GL_RED; break;
+            case PixelFormat.LA8:    intFormat = GL_RG8;    format = GL_RG; break;
+            case PixelFormat.RGB8:   intFormat = GL_RGB8;   format = GL_RGB; break;
+            case PixelFormat.RGBA8:  intFormat = GL_RGBA8;  format = GL_RGBA; break;
             default:
                 writefln("Unsupported pixel format %s", img.pixelFormat);
                 return;

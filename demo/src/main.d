@@ -39,6 +39,12 @@ class SimpleBackend: GLSLMaterialBackend
         uniform mat4 viewMatrix;
         uniform sampler2D diffuseTexture;
         uniform sampler2D normalTexture;
+        uniform sampler2D heightTexture;
+        
+        uniform float roughness;
+        
+        uniform float parallaxScale;
+        uniform float parallaxBias;
         
         in vec3 eyePosition;
         in vec3 eyeNormal;
@@ -72,15 +78,19 @@ class SimpleBackend: GLSLMaterialBackend
             
             mat3 TBN = cotangentFrame(eyeNormal, eyePosition, texCoord);
             
-            vec3 tN = normalize(texture2D(normalTexture, texCoord).rgb * 2.0 - 1.0);
+            float height = texture2D(heightTexture, texCoord).r;
+            height = height * parallaxScale + parallaxBias;
+            vec3 Ee = normalize(E * TBN);
+            vec2 shiftedTexCoord = texCoord + (height * Ee.xy);
+            
+            vec3 tN = normalize(texture2D(normalTexture, shiftedTexCoord).rgb * 2.0 - 1.0);
             tN.y = -tN.y;
             N = normalize(TBN * tN);
-            
-            const float ambient = 0.3;
-            
-            float roughness = 0.3;
+
             float gloss = 1.0 - roughness;
             float shininess = gloss * 128.0;
+            
+            const float ambient = 0.3;
             
             float diffuse = clamp(dot(L, N), 0.0, 1.0);
             
@@ -88,7 +98,7 @@ class SimpleBackend: GLSLMaterialBackend
             float NH = dot(N, hE);
             float specular = pow(max(NH, 0.0), shininess) * gloss;
             
-            vec4 tex = texture(diffuseTexture, texCoord);
+            vec4 tex = texture(diffuseTexture, shiftedTexCoord);
             frag_color = tex * ambient + tex * diffuse * (1.0 - ambient) + vec4(1.0) * specular;
             frag_color.a = 1.0;
         }
@@ -102,8 +112,14 @@ class SimpleBackend: GLSLMaterialBackend
     GLint projectionMatrixLoc;
     GLint normalMatrixLoc;
     
+    GLint roughnessLoc;
+    
+    GLint parallaxScaleLoc;
+    GLint parallaxBiasLoc;
+    
     GLint diffuseTextureLoc;
     GLint normalTextureLoc;
+    GLint heightTextureLoc;
     
     this(Owner o)
     {
@@ -114,8 +130,14 @@ class SimpleBackend: GLSLMaterialBackend
         projectionMatrixLoc = glGetUniformLocation(shaderProgram, "projectionMatrix");
         normalMatrixLoc = glGetUniformLocation(shaderProgram, "normalMatrix");
         
+        roughnessLoc = glGetUniformLocation(shaderProgram, "roughness"); 
+       
+        parallaxScaleLoc = glGetUniformLocation(shaderProgram, "parallaxScale");
+        parallaxBiasLoc = glGetUniformLocation(shaderProgram, "parallaxBias");
+        
         diffuseTextureLoc = glGetUniformLocation(shaderProgram, "diffuseTexture");
         normalTextureLoc = glGetUniformLocation(shaderProgram, "normalTexture");
+        heightTextureLoc = glGetUniformLocation(shaderProgram, "heightTexture");
     }
     
     Texture makeOnePixelTexture(Material mat, Color4f color)
@@ -131,6 +153,8 @@ class SimpleBackend: GLSLMaterialBackend
     {
         auto idiffuse = "diffuse" in mat.inputs;
         auto inormal = "normal" in mat.inputs;
+        auto iheight = "height" in mat.inputs;
+        auto iroughness = "roughness" in mat.inputs;
         
         glEnable(GL_CULL_FACE);
         
@@ -141,6 +165,25 @@ class SimpleBackend: GLSLMaterialBackend
         glUniformMatrix4fv(modelViewMatrixLoc, 1, GL_FALSE, rc.modelViewMatrix.arrayof.ptr);
         glUniformMatrix4fv(projectionMatrixLoc, 1, GL_FALSE, rc.projectionMatrix.arrayof.ptr);
         glUniformMatrix4fv(normalMatrixLoc, 1, GL_FALSE, rc.normalMatrix.arrayof.ptr);
+        
+        // PBR parameters
+        glUniform1f(roughnessLoc, iroughness.asFloat);
+        
+        // Parallax mapping parameters
+        float parallaxScale = 0.0f;
+        float parallaxBias = 0.0f;
+        if (iheight.texture is null)
+        {
+            Color4f color = Color4f(0.3, 0.3, 0.3, 0);
+            iheight.texture = makeOnePixelTexture(mat, color);
+        }
+        else
+        {
+            parallaxScale = 0.03f;
+            parallaxBias = -0.01f;
+        }
+        glUniform1f(parallaxScaleLoc, parallaxScale);
+        glUniform1f(parallaxBiasLoc, parallaxBias);
         
         // Texture 0 - diffuse texture
         if (idiffuse.texture is null)
@@ -161,18 +204,33 @@ class SimpleBackend: GLSLMaterialBackend
         glActiveTexture(GL_TEXTURE1);
         inormal.texture.bind();
         glUniform1i(normalTextureLoc, 1);
+        
+        // Texture 2 - height map
+        // TODO: pass height data as an alpha channel of normap map, 
+        // thus releasing space for some additional texture
+        glActiveTexture(GL_TEXTURE2);
+        iheight.texture.bind();
+        glUniform1i(heightTextureLoc, 2);
+        
+        glActiveTexture(GL_TEXTURE0);
     }
     
     override void unbind(GenericMaterial mat)
     {
         auto idiffuse = "diffuse" in mat.inputs;
         auto inormal = "normal" in mat.inputs;
+        auto iheight = "height" in mat.inputs;
         
         glActiveTexture(GL_TEXTURE0);
         idiffuse.texture.unbind();
         
         glActiveTexture(GL_TEXTURE1);
         inormal.texture.unbind();
+        
+        glActiveTexture(GL_TEXTURE2);
+        iheight.texture.unbind();
+        
+        glActiveTexture(GL_TEXTURE0);
         
         glUseProgram(0);
     }
@@ -185,6 +243,7 @@ class TestScene: BaseScene3D
     
     TextureAsset aTexStoneDiffuse;
     TextureAsset aTexStoneNormal;
+    TextureAsset aTexStoneHeight;
     
     OBJAsset obj;
     
@@ -202,6 +261,7 @@ class TestScene: BaseScene3D
         
         aTexStoneDiffuse = addTextureAsset("data/textures/stone-albedo.png");
         aTexStoneNormal = addTextureAsset("data/textures/stone-normal.png");
+        aTexStoneHeight = addTextureAsset("data/textures/stone-height.png");
         
         obj = New!OBJAsset(assetManager);
         addAsset(obj, "data/obj/imrod.obj");
@@ -224,6 +284,7 @@ class TestScene: BaseScene3D
         auto mat2 = New!GenericMaterial(sb, assetManager);
         mat2.diffuse = aTexStoneDiffuse.texture;
         mat2.normal = aTexStoneNormal.texture;
+        mat2.height = aTexStoneHeight.texture;
         
         Entity e = New!Entity(eventManager, assetManager);
         entities3D.append(e);
