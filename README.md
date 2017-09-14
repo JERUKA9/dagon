@@ -12,6 +12,7 @@ Implemented features:
 * Plane shape
 * Shadows
 * Skeleton GLSL material backend
+* Blinn-Phong material backend
 * Freeview
 * First person view
 * TTF fonts and text rendering
