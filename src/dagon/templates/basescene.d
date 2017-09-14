@@ -12,6 +12,8 @@ import dagon.resource.scene;
 import dagon.graphics.environment;
 import dagon.graphics.rc;
 import dagon.graphics.view;
+import dagon.graphics.materials.generic;
+import dagon.graphics.materials.bp;
 import dagon.logics.entity;
 
 import std.stdio;
@@ -19,6 +21,7 @@ import std.stdio;
 class BaseScene3D: Scene
 {
     Environment environment;
+    BlinnPhongBackend defaultMaterialBackend;
 
     RenderingContext rc3d; 
     RenderingContext rc2d; 
@@ -48,10 +51,18 @@ class BaseScene3D: Scene
         entities3D.append(e);
         return e;
     }
+    
+    GenericMaterial createMaterial(GenericMaterialBackend backend = null)
+    {
+        if (backend is null)
+            backend = defaultMaterialBackend;
+        return New!GenericMaterial(backend, assetManager);
+    }
 
     override void onAllocate()
     {    
         environment = New!Environment(assetManager);
+        defaultMaterialBackend = New!BlinnPhongBackend(assetManager);
     }
     
     override void onRelease()

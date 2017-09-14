@@ -21,6 +21,14 @@ import dagon.graphics.texture;
 import dagon.graphics.material;
 import dagon.graphics.materials.generic;
 
+/*
+ * Standard material backend for simple ambient-diffuse-specular BRDF.
+ * Works with a single directional light ("sun") 
+ * which is controlled via Environment object of the current RenderingContext.
+ * Supports Blinn-Phong specular, normal mapping, 
+ * parallax mapping (including parallax occlusion mapping), shadows, fog.
+ */
+
 class BlinnPhongBackend: GLSLMaterialBackend
 {
     string vsText = 
@@ -84,8 +92,12 @@ class BlinnPhongBackend: GLSLMaterialBackend
         uniform float shadowTextureSize;
         uniform bool useShadows;
         
+        uniform vec4 environmentColor;
         uniform vec3 sunDirection;
         uniform vec3 sunColor;
+        uniform vec4 fogColor;
+        uniform float fogStart;
+        uniform float fogEnd;
         
         in vec3 eyePosition;
         in vec3 eyeNormal;
@@ -96,8 +108,6 @@ class BlinnPhongBackend: GLSLMaterialBackend
         in vec4 shadowCoord3;
         
         out vec4 frag_color;
-        
-        const vec4 lightPos = vec4(0.0, 8.0, 4.0, 1.0);
         
         mat3 cotangentFrame(in vec3 N, in vec3 p, in vec2 uv)
         {
@@ -133,7 +143,6 @@ class BlinnPhongBackend: GLSLMaterialBackend
             vec2 dtex = scale * V.xy / V.z / numLayers;
 
             vec2 currentTextureCoords = T;
-
             float heightFromTexture = texture(heightTexture, currentTextureCoords).r;
 
             while(heightFromTexture > curLayerHeight)
@@ -185,14 +194,13 @@ class BlinnPhongBackend: GLSLMaterialBackend
         
         void main()
         {
-            vec3 L = (viewMatrix * lightPos).xyz;
-            L = normalize(L - eyePosition);
-                        
+            // Common vectors
             vec3 N = normalize(eyeNormal);
             vec3 E = normalize(-eyePosition);
             mat3 TBN = cotangentFrame(eyeNormal, eyePosition, texCoord);
             vec3 tE = normalize(E * TBN);
 
+            // Parallax mapping
             vec2 shiftedTexCoord = texCoord;
             if (parallaxMethod == 0)
                 shiftedTexCoord = texCoord;
@@ -201,16 +209,16 @@ class BlinnPhongBackend: GLSLMaterialBackend
             else if (parallaxMethod == 2)
                 shiftedTexCoord = parallaxOcclusionMapping(tE, texCoord, parallaxScale);
             
+            // Normal mapping
             vec3 tN = normalize(texture2D(normalTexture, shiftedTexCoord).rgb * 2.0 - 1.0);
             tN.y = -tN.y;
             N = normalize(TBN * tN);
 
+            // Roughness to blinn-phong specular power
             float gloss = 1.0 - roughness;
             float shininess = gloss * 128.0;
             
-            // TODO: read ambient params from uniforms
-            const float ambient = 0.1;
-            
+            // Sun light
             float sunDiffBrightness = clamp(dot(N, sunDirection), 0.0, 1.0);
             vec3 halfEye = normalize(sunDirection + E);
             float NH = dot(N, halfEye);
@@ -235,9 +243,20 @@ class BlinnPhongBackend: GLSLMaterialBackend
                 s1 = 1.0f;
             }
             
+            // Fog
+            float fogDistance = gl_FragCoord.z / gl_FragCoord.w;
+            float fogFactor = clamp((fogEnd - fogDistance) / (fogEnd - fogStart), 0.0, 1.0);
+            
+            // Diffuse texture
             vec4 diffuseColor = texture(diffuseTexture, shiftedTexCoord);
-            vec3 objColor = diffuseColor.rgb * (vec3(ambient) + sunColor * sunDiffBrightness * (1.0 - ambient) * s1) + sunColor * sunSpecBrightness * s1;
-            frag_color = vec4(objColor, 1.0);
+            
+            vec3 objColor = 
+                diffuseColor.rgb * (environmentColor.rgb + sunColor * sunDiffBrightness * s1) + 
+                sunColor * sunSpecBrightness * s1;
+                
+            vec3 fragColor = mix(fogColor.rgb, objColor, fogFactor);
+            
+            frag_color = vec4(fragColor, diffuseColor.a);
         }
     };
     
@@ -266,8 +285,12 @@ class BlinnPhongBackend: GLSLMaterialBackend
     GLint normalTextureLoc;
     GLint heightTextureLoc;
     
+    GLint environmentColorLoc;
     GLint sunDirectionLoc;
     GLint sunColorLoc;
+    GLint fogStartLoc;
+    GLint fogEndLoc;
+    GLint fogColorLoc;
     
     CascadedShadowMap shadowMap;
     Matrix4x4f defaultShadowMat;
@@ -299,8 +322,12 @@ class BlinnPhongBackend: GLSLMaterialBackend
         normalTextureLoc = glGetUniformLocation(shaderProgram, "normalTexture");
         heightTextureLoc = glGetUniformLocation(shaderProgram, "heightTexture");
         
+        environmentColorLoc = glGetUniformLocation(shaderProgram, "environmentColor");
         sunDirectionLoc = glGetUniformLocation(shaderProgram, "sunDirection");
         sunColorLoc = glGetUniformLocation(shaderProgram, "sunColor");
+        fogStartLoc = glGetUniformLocation(shaderProgram, "fogStart");
+        fogEndLoc = glGetUniformLocation(shaderProgram, "fogEnd");
+        fogColorLoc = glGetUniformLocation(shaderProgram, "fogColor");
     }
     
     Texture makeOnePixelTexture(Material mat, Color4f color)
@@ -318,6 +345,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
         auto inormal = "normal" in mat.inputs;
         auto iheight = "height" in mat.inputs;
         auto iroughness = "roughness" in mat.inputs;
+        bool fogEnabled = boolProp(mat, "fogEnabled");
         bool shadowsEnabled = boolProp(mat, "shadowsEnabled");
         int parallaxMethod = intProp(mat, "parallax");
         if (parallaxMethod > ParallaxOcclusionMapping)
@@ -336,17 +364,35 @@ class BlinnPhongBackend: GLSLMaterialBackend
         glUniformMatrix4fv(normalMatrixLoc, 1, GL_FALSE, rc.normalMatrix.arrayof.ptr);
         
         // Environment parameters
+        Color4f environmentColor = Color4f(0.0f, 0.0f, 0.0f, 1.0f);
         Vector4f sunHGVector = Vector4f(0.0f, 1.0f, 0.0, 0.0f);
         Vector3f sunColor = Vector3f(1.0f, 1.0f, 1.0f);
         if (rc.environment)
         {
+            environmentColor = rc.environment.ambientConstant;
             sunHGVector = Vector4f(rc.environment.sunDirection);
             sunHGVector.w = 0.0;
             sunColor = rc.environment.sunColor;
         }
+        glUniform4fv(environmentColorLoc, 1, environmentColor.arrayof.ptr);
         Vector3f sunDirectionEye = sunHGVector * rc.viewMatrix;
         glUniform3fv(sunDirectionLoc, 1, sunDirectionEye.arrayof.ptr);
         glUniform3fv(sunColorLoc, 1, sunColor.arrayof.ptr);
+        Color4f fogColor = Color4f(0.0f, 0.0f, 0.0f, 1.0f);
+        float fogStart = float.max;
+        float fogEnd = float.max;
+        if (fogEnabled)
+        {
+            if (rc.environment)
+            {                
+                fogColor = rc.environment.fogColor;
+                fogStart = rc.environment.fogStart;
+                fogEnd = rc.environment.fogEnd;
+            }
+        }
+        glUniform4fv(fogColorLoc, 1, fogColor.arrayof.ptr);
+        glUniform1f(fogStartLoc, fogStart);
+        glUniform1f(fogEndLoc, fogEnd);
         
         // PBR parameters
         glUniform1f(roughnessLoc, iroughness.asFloat);
@@ -418,6 +464,12 @@ class BlinnPhongBackend: GLSLMaterialBackend
             glUniformMatrix4fv(shadowMatrix3Loc, 1, 0, defaultShadowMat.arrayof.ptr);
             glUniform1i(useShadowsLoc, 0);
         }
+        
+        // Texture 4 is reserved for PBR maps (roughness + metallic + emission)
+        // Texture 5 is reserved for environment map
+        // Texture 6 is reserved for light clusters
+        // Texture 7 is reserved for light data
+        // Texture 8 is reserved for light indices per cluster
         
         glActiveTexture(GL_TEXTURE0);
     }

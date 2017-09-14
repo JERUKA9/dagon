@@ -54,10 +54,8 @@ class TestScene: BaseScene3D
     OBJAsset aImrod;
     OBJAsset aCrate;
     
-    BlinnPhongBackend bpb;
-    
     CascadedShadowMap shadowMap;
-    float r = -45.0f;
+    float rx = -45.0f;
     float ry = 0.0f;
     
     FirstPersonView fpview;
@@ -123,26 +121,24 @@ class TestScene: BaseScene3D
         lens = New!PostFilterLensDistortion(fbAA, assetManager);
         
         shadowMap = New!CascadedShadowMap(1024, this, assetManager);
+        defaultMaterialBackend.shadowMap = shadowMap;
         
-        bpb = New!BlinnPhongBackend(assetManager);
-        bpb.shadowMap = shadowMap;
-        
-        auto matImrod = New!GenericMaterial(bpb, assetManager);
+        auto matImrod = createMaterial();
         matImrod.diffuse = aTexImrodDiffuse.texture;
         matImrod.normal = aTexImrodNormal.texture;
         
-        auto mCrate = New!GenericMaterial(bpb, assetManager);
+        auto mCrate = createMaterial();
         mCrate.diffuse = aTexCrateDiffuse.texture;
         mCrate.roughness = 0.9f;
         
-        auto mStone = New!GenericMaterial(bpb, assetManager);
+        auto mStone = createMaterial();
         mStone.diffuse = aTexStoneDiffuse.texture;
         mStone.normal = aTexStoneNormal.texture;
         mStone.height = aTexStoneHeight.texture;
         mStone.roughness = 0.2f;
         mStone.parallax = ParallaxOcclusionMapping;
         
-        auto mGround = New!GenericMaterial(bpb, assetManager);
+        auto mGround = createMaterial();
         mGround.diffuse = aTexStone2Diffuse.texture;
         mGround.normal = aTexStone2Normal.texture;
         mGround.height = aTexStone2Height.texture;
@@ -192,8 +188,8 @@ class TestScene: BaseScene3D
         character = New!CharacterController(world, fpview.camera.position, 80.0f, gSphere, assetManager);
         character.createSensor(gSensor, Vector3f(0.0f, -0.75f, 0.0f));
         
-        auto text = New!TextLine(aFont.font, "Hello, World! Привет, мир!", assetManager);
-        text.color = Color4f(1.0f, 1.0f, 0.0f, 0.5f);
+        auto text = New!TextLine(aFont.font, "Press <LMB> to switch mouse look, WASD to move, spacebar to jump, arrow keys to rotate the sun", assetManager);
+        text.color = Color4f(1.0f, 1.0f, 1.0f, 0.7f);
         
         auto eText = createEntity2D();
         eText.drawable = text;
@@ -233,11 +229,11 @@ class TestScene: BaseScene3D
     
     void updateEnvironment(double dt)
     {
-        if (eventManager.keyPressed[KEY_DOWN]) r += 30.0f * dt;
-        if (eventManager.keyPressed[KEY_UP]) r -= 30.0f * dt;
+        if (eventManager.keyPressed[KEY_DOWN]) rx += 30.0f * dt;
+        if (eventManager.keyPressed[KEY_UP]) rx -= 30.0f * dt;
         if (eventManager.keyPressed[KEY_LEFT]) ry += 30.0f * dt;
         if (eventManager.keyPressed[KEY_RIGHT]) ry -= 30.0f * dt;
-        environment.sunRotation = rotationQuaternion(Axis.y, degtorad(ry)) * rotationQuaternion(Axis.x, degtorad(r));
+        environment.sunRotation = rotationQuaternion(Axis.y, degtorad(ry)) * rotationQuaternion(Axis.x, degtorad(rx));
     }
     
     void updateShadow(double dt)
@@ -261,16 +257,20 @@ class TestScene: BaseScene3D
     {
         shadowMap.render(&rc3d);
         
+        // Render 3D objects to fb
         fb.bind();
         prepareRender();        
         renderEntities3D(&rc3d);
         fb.unbind();
         
+        // Render fxaa quad to fbAA
         fbAA.bind();
         prepareRender();
         fxaa.render(&rc2d);
         fbAA.unbind();
         
+        // Render lens distortion quad 
+        // and 2D objects to main framebuffer
         prepareRender();
         lens.render(&rc2d);
         renderEntities2D(&rc2d);

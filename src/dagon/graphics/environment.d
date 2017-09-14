@@ -15,7 +15,7 @@ class Environment: Owner
     Color4f ambientConstant = Color4f(0.1f, 0.1f, 0.1f, 1.0f);
     // TODO: ambient map (cubemap and equirectangular map)
 
-    Color4f fogColor = Color4f(0.5f, 0.5f, 0.5f, 1.0f);
+    Color4f fogColor = Color4f(0.1f, 0.1f, 0.1f, 1.0f);
     float fogStart = 20.0f;
     float fogEnd = 100.0f;
     
@@ -35,12 +35,13 @@ class Environment: Owner
     Color4f skyHorizonColorAtNight = Color4f(0.0, 0.0, 0.0, 1.0);
 
     bool useSkyColors = false;
+    bool atmosphericFog = false;
 
     this(Owner o)
     {
         super(o);
         
-        sunRotation = rotationQuaternion(Axis.x, degtorad(-45.0f)); //Quaternionf.identity;
+        sunRotation = rotationQuaternion(Axis.x, degtorad(-45.0f));
     }
     
     void update(double dt)
@@ -50,8 +51,15 @@ class Environment: Owner
             skyZenithColor = lerpColorsBySunAngle(skyZenithColorAtMidday, skyZenithColorAtSunset, skyZenithColorAtNight);
             skyHorizonColor = lerpColorsBySunAngle(skyHorizonColorAtMidday, skyHorizonColorAtSunset, skyHorizonColorAtNight);
             backgroundColor = skyZenithColor;
-            fogColor = skyHorizonColor;
+            if (atmosphericFog)
+                fogColor = skyHorizonColor;
+            else
+                fogColor = backgroundColor;
             ambientConstant = Color4f(0.0f, 0.05f, 0.05f) + skyZenithColor * 0.3f;
+        }
+        else
+        {
+            fogColor = backgroundColor;
         }
     }
     
