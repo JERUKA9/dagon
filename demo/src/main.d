@@ -4,6 +4,35 @@ import std.stdio;
 
 import dagon;
 
+import dmech.world;
+import dmech.geometry;
+import dmech.rigidbody;
+import dmech.bvh;
+
+import rigidbodycontroller;
+import character;
+
+BVHTree!Triangle meshBVH(Mesh mesh)
+{
+    DynamicArray!Triangle tris;
+
+    foreach(tri; mesh)
+    {
+        Triangle tri2 = tri;
+        tri2.v[0] = tri.v[0];
+        tri2.v[1] = tri.v[1];
+        tri2.v[2] = tri.v[2];
+        tri2.normal = tri.normal;
+        tri2.barycenter = (tri2.v[0] + tri2.v[1] + tri2.v[2]) / 3;
+        tris.append(tri2);
+    }
+
+    assert(tris.length);
+    BVHTree!Triangle bvh = New!(BVHTree!Triangle)(tris, 4);
+    tris.free();
+    return bvh;
+}
+
 class BlinnPhongBackend: GLSLMaterialBackend
 {
     string vsText = 
@@ -389,7 +418,11 @@ class TestScene: BaseScene3D
     TextureAsset aTexStoneNormal;
     TextureAsset aTexStoneHeight;
     
-    OBJAsset aImrod;
+    TextureAsset aTexStone2Diffuse;
+    TextureAsset aTexStone2Normal;
+    TextureAsset aTexStone2Height;
+    
+    OBJAsset aBuilding;
     
     BlinnPhongBackend bpb;
     
@@ -398,6 +431,16 @@ class TestScene: BaseScene3D
     float ry = 0.0f;
     
     FirstPersonView fpview;
+    
+    PhysicsWorld world;
+    RigidBody bGround;
+    Geometry gGround;
+    //Geometry gCrate;
+    GeomEllipsoid gSphere;
+    GeomBox gSensor;
+    CharacterController character;
+    BVHTree!Triangle bvh;
+    bool initializedPhysics = false;
 
     this(SceneManager smngr)
     {
@@ -415,8 +458,12 @@ class TestScene: BaseScene3D
         aTexStoneNormal = addTextureAsset("data/textures/stone-normal.png");
         aTexStoneHeight = addTextureAsset("data/textures/stone-height.png");
         
-        aImrod = New!OBJAsset(assetManager);
-        addAsset(aImrod, "data/obj/imrod.obj");
+        aTexStone2Diffuse = addTextureAsset("data/textures/stone2-albedo.png");
+        aTexStone2Normal = addTextureAsset("data/textures/stone2-normal.png");
+        aTexStone2Height = addTextureAsset("data/textures/stone2-height.png");
+        
+        aBuilding = New!OBJAsset(assetManager);
+        addAsset(aBuilding, "data/obj/level.obj");
     }
 
     override void onAllocate()
@@ -436,19 +483,39 @@ class TestScene: BaseScene3D
         mat1.diffuse = aTexImrodDiffuse.texture;
         mat1.normal = aTexImrodNormal.texture;
         
-        auto mat2 = New!GenericMaterial(bpb, assetManager);
-        mat2.diffuse = aTexStoneDiffuse.texture;
-        mat2.normal = aTexStoneNormal.texture;
-        mat2.height = aTexStoneHeight.texture;
+        auto mStone = New!GenericMaterial(bpb, assetManager);
+        mStone.diffuse = aTexStoneDiffuse.texture;
+        mStone.normal = aTexStoneNormal.texture;
+        mStone.height = aTexStoneHeight.texture;
+        mStone.roughness = 0.2f;
         
-        Entity eImrod = createEntity3D();
-        eImrod.scaling = Vector3f(0.5, 0.5, 0.5);
-        eImrod.drawable = aImrod.mesh;
-        eImrod.material = mat1;
+        auto mGround = New!GenericMaterial(bpb, assetManager);
+        mGround.diffuse = aTexStone2Diffuse.texture;
+        mGround.normal = aTexStone2Normal.texture;
+        mGround.height = aTexStone2Height.texture;
+        mGround.roughness = 0.8f;
         
-        Entity ePlane = createEntity3D();
-        ePlane.drawable = New!ShapePlane(10, 10, 5, assetManager);
-        ePlane.material = mat2;
+        Entity eBuilding = createEntity3D();
+        eBuilding.drawable = aBuilding.mesh;
+        eBuilding.material = mStone;
+        
+        world = New!PhysicsWorld();
+
+        bvh = meshBVH(aBuilding.mesh);
+        world.bvhRoot = bvh.root;
+        
+        RigidBody bGround = world.addStaticBody(Vector3f(0.0f, 0.0f, 0.0f));
+        gGround = New!GeomBox(Vector3f(100.0f, 0.8f, 100.0f));
+        world.addShapeComponent(bGround, gGround, Vector3f(0.0f, 0.0f, 0.0f), 1.0f);
+        auto eGround = createEntity3D();
+        eGround.drawable = New!ShapePlane(200, 200, 100, assetManager);
+        eGround.material = mGround;
+        eGround.position.y = 0.8f;
+        
+        gSphere = New!GeomEllipsoid(Vector3f(0.9f, 1.0f, 0.9f));
+        gSensor = New!GeomBox(Vector3f(0.5f, 0.5f, 0.5f));
+        character = New!CharacterController(world, fpview.camera.position, 80.0f, gSphere, assetManager);
+        character.createSensor(gSensor, Vector3f(0.0f, -0.75f, 0.0f));
         
         auto text = New!TextLine(aFont.font, "Hello, World! Привет, мир!", assetManager);
         text.color = Color4f(1.0f, 1.0f, 0.0f, 0.5f);
@@ -458,6 +525,8 @@ class TestScene: BaseScene3D
         eText.position = Vector3f(16.0f, eventManager.windowHeight - 30.0f, 0.0f);
         
         environment.backgroundColor = Color4f(0.2f, 0.2f, 0.2f, 1.0f);
+        
+        initializedPhysics = true;
     }
     
     override void onMouseButtonDown(int button)
@@ -472,7 +541,8 @@ class TestScene: BaseScene3D
     }
     
     void updateCharacter(double dt)
-    {
+    { 
+        character.rotation.y = fpview.camera.turn;
         Vector3f forward = fpview.camera.characterMatrix.forward;
         Vector3f right = fpview.camera.characterMatrix.right; 
         float speed = 8.0f;
@@ -481,7 +551,9 @@ class TestScene: BaseScene3D
         if (eventManager.keyPressed[KEY_S]) dir += forward;
         if (eventManager.keyPressed[KEY_A]) dir += -right;
         if (eventManager.keyPressed[KEY_D]) dir += right;
-        fpview.camera.position += dir * speed * dt;
+        character.move(dir.normalized, speed);
+        if (eventManager.keyPressed[KEY_SPACE]) character.jump(2.0f);
+        character.update();
     }
     
     void updateEnvironment(double dt)
@@ -502,6 +574,10 @@ class TestScene: BaseScene3D
     override void onLogicsUpdate(double dt)
     {  
         updateCharacter(dt);
+        
+        world.update(dt);
+        fpview.camera.position = character.rbody.position;
+        
         updateEnvironment(dt);
         updateShadow(dt);
     }
@@ -518,6 +594,17 @@ class TestScene: BaseScene3D
     override void onRelease()
     {
         super.onRelease();
+        
+        if (initializedPhysics)
+        {
+            Delete(world);
+            Delete(gGround);
+            //Delete(gCrate);
+            Delete(gSphere);
+            Delete(gSensor);
+            bvh.free();
+            initializedPhysics = false;
+        }
     }
 
     override void onKeyDown(int key)
