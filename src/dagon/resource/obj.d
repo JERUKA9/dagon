@@ -17,104 +17,7 @@ import dagon.core.interfaces;
 import dagon.resource.asset;
 import dagon.graphics.mesh;
 
-/*
-class ObjMesh: Mesh
-{
-    Vector3f[] tmpVertices;
-    Vector3f[] normals;
-    Vector2f[] texcoords1;
-    Vector2f[] texcoords2;
-    
-    ObjFace[] faces;
-    uint displayList;
-
-    this(Owner o)
-    {
-        super(o);
-    }
-
-    ~this()
-    {
-        if (glIsList(displayList))
-            glDeleteLists(displayList, 1);
-
-        if (vertices.length)
-            Delete(vertices);
-        if (normals.length)
-            Delete(normals);
-        if (texcoords1.length)
-            Delete(texcoords1);
-        if (texcoords2.length)
-            Delete(texcoords2);
-        if (faces.length)
-            Delete(faces);
-    }
-
-    void createDisplayList()
-    {
-        displayList = glGenLists(1);
-        glNewList(displayList, GL_COMPILE);
-        
-        glBegin(GL_TRIANGLES);
-        foreach(f; faces)
-        {
-            if (normals.length) glNormal3fv(normals[f.n[0]].arrayof.ptr);
-            if (texcoords1.length) glTexCoord2fv(texcoords1[f.t1[0]].arrayof.ptr);
-            if (vertices.length) glVertex3fv(vertices[f.v[0]].arrayof.ptr);
-            
-            if (normals.length) glNormal3fv(normals[f.n[1]].arrayof.ptr);
-            if (texcoords1.length) glTexCoord2fv(texcoords1[f.t1[1]].arrayof.ptr);
-            if (vertices.length) glVertex3fv(vertices[f.v[1]].arrayof.ptr);
-            
-            if (normals.length) glNormal3fv(normals[f.n[2]].arrayof.ptr);
-            if (texcoords1.length) glTexCoord2fv(texcoords1[f.t1[2]].arrayof.ptr);
-            if (vertices.length) glVertex3fv(vertices[f.v[2]].arrayof.ptr);
-        }
-        glEnd();
-        
-        glEndList();
-    }
-
-    int opApply(scope int delegate(Triangle t) dg)
-    {
-        int result = 0;
-
-        foreach(i, ref f; faces)
-        {
-            Triangle tri;
-
-            tri.v[0] = vertices[f.v[0]];
-            tri.v[1] = vertices[f.v[1]];
-            tri.v[2] = vertices[f.v[2]];
-            tri.n[0] = normals[f.n[0]];
-            tri.n[1] = normals[f.n[1]];
-            tri.n[2] = normals[f.n[2]];
-            tri.t1[0] = texcoords1[f.t1[0]];
-            tri.t1[1] = texcoords1[f.t1[1]];
-            tri.t1[2] = texcoords1[f.t1[2]];
-            tri.normal = (tri.n[0] + tri.n[1] + tri.n[2]) / 3.0f;
-
-            result = dg(tri);
-            if (result)
-                break;
-        }
-
-        return result;
-    }
-
-    void update(double dt)
-    {
-    }
-
-    void render(RenderingContext* rc)
-    {
-        //glEnable(GL_CULL_FACE);
-        if (glIsList(displayList))
-            glCallList(displayList);
-        //glDisable(GL_CULL_FACE);
-    }
-}
-*/
+import std.regex;
 
 struct ObjFace
 {
@@ -162,6 +65,13 @@ class OBJAsset: Asset
         Vector3f[] tmpNormals;
         Vector2f[] tmpTexcoords;
         ObjFace[] tmpFaces;
+        
+        if (!numVerts)
+            writeln("Warning: OBJ file \"", filename, "\" has no vertices");
+        if (!numNormals)
+            writeln("Warning: OBJ file \"", filename, "\" has no normals");
+        if (!numTexcoords)
+            writeln("Warning: OBJ file \"", filename, "\" has no texcoords");
 
         if (numVerts)
             tmpVertices = New!(Vector3f[])(numVerts);
@@ -173,13 +83,15 @@ class OBJAsset: Asset
             tmpFaces = New!(ObjFace[])(numFaces);
 
         float x, y, z;
-        int v1, v2, v3;
-        int t1, t2, t3;
-        int n1, n2, n3;
+        int v1, v2, v3, v4;
+        int t1, t2, t3, t4;
+        int n1, n2, n3, n4;
         uint vi = 0;
         uint ni = 0;
         uint ti = 0;
         uint fi = 0;
+        
+        bool warnAboutQuads = false;
 
         foreach(line; lineSplitter(fileStr))
         {
@@ -212,7 +124,29 @@ class OBJAsset: Asset
             }
             else if (line.startsWith("f"))
             {
-                if (formattedRead(line, "f %s/%s/%s %s/%s/%s %s/%s/%s", &v1, &t1, &n1, &v2, &t2, &n2, &v3, &t3, &n3))
+                char[256] tmpStr;
+                tmpStr[0..line.length] = line[];
+                tmpStr[line.length] = 0;
+            
+                if (sscanf(tmpStr.ptr, "f %u/%u/%u %u/%u/%u %u/%u/%u %u/%u/%u", &v1, &t1, &n1, &v2, &t2, &n2, &v3, &t3, &n3, &v4, &t4, &n4) == 12)
+                {
+                    tmpFaces[fi].v[0] = v1-1;
+                    tmpFaces[fi].v[1] = v2-1;
+                    tmpFaces[fi].v[2] = v3-1;
+                    
+                    tmpFaces[fi].t[0] = t1-1;
+                    tmpFaces[fi].t[1] = t2-1;
+                    tmpFaces[fi].t[2] = t3-1;
+                    
+                    tmpFaces[fi].n[0] = n1-1;
+                    tmpFaces[fi].n[1] = n2-1;
+                    tmpFaces[fi].n[2] = n3-1;
+                    
+                    fi++;
+                    
+                    warnAboutQuads = true;
+                }
+                if (sscanf(tmpStr.ptr, "f %u/%u/%u %u/%u/%u %u/%u/%u", &v1, &t1, &n1, &v2, &t2, &n2, &v3, &t3, &n3) == 9)
                 {
                     tmpFaces[fi].v[0] = v1-1;
                     tmpFaces[fi].v[1] = v2-1;
@@ -228,7 +162,21 @@ class OBJAsset: Asset
                     
                     fi++;
                 }
-                else if (formattedRead(line, "f %s//%s %s//%s %s//%s", &v1, &n1, &v2, &n2, &v3, &n3))
+                else if (sscanf(tmpStr.ptr, "f %u//%u %u//%u %u//%u %u//%u", &v1, &n1, &v2, &n2, &v3, &n3, &v4, &n4) == 8)
+                {
+                    tmpFaces[fi].v[0] = v1-1;
+                    tmpFaces[fi].v[1] = v2-1;
+                    tmpFaces[fi].v[2] = v3-1;
+                    
+                    tmpFaces[fi].n[0] = n1-1;
+                    tmpFaces[fi].n[1] = n2-1;
+                    tmpFaces[fi].n[2] = n3-1;
+                    
+                    fi++;
+                    
+                    warnAboutQuads = true;
+                } 
+                else if (sscanf(tmpStr.ptr, "f %u//%u %u//%u %u//%u", &v1, &n1, &v2, &n2, &v3, &n3) == 6)
                 {
                     tmpFaces[fi].v[0] = v1-1;
                     tmpFaces[fi].v[1] = v2-1;
@@ -240,7 +188,17 @@ class OBJAsset: Asset
                     
                     fi++;
                 }
-                else if (formattedRead(line, "f %s %s %s", &v1, &v2, &v3))
+                else if (sscanf(tmpStr.ptr, "f %u %u %u %u", &v1, &v2, &v3, &v4) == 4)
+                {
+                    tmpFaces[fi].v[0] = v1-1;
+                    tmpFaces[fi].v[1] = v2-1;
+                    tmpFaces[fi].v[2] = v3-1;
+                    
+                    fi++;
+                    
+                    warnAboutQuads = true;
+                }
+                else if (sscanf(tmpStr.ptr, "f %u %u %u", &v1, &v2, &v3) == 3)
                 {
                     tmpFaces[fi].v[0] = v1-1;
                     tmpFaces[fi].v[1] = v2-1;
@@ -248,15 +206,15 @@ class OBJAsset: Asset
                     
                     fi++;
                 }
+                else
+                    assert(0);
             }
         }
 
         Delete(fileStr);
         
-        assert(tmpFaces.length);
-        assert(tmpVertices.length);
-        assert(tmpNormals.length);
-        assert(tmpTexcoords.length);
+        if (warnAboutQuads)
+            writeln("Warning: OBJ file \"", filename, "\" includes quads, but Dagon supports only triangles");
         
         mesh.indices = New!(uint[3][])(tmpFaces.length);
         uint numUniqueVerts = cast(uint)mesh.indices.length * 3;
@@ -268,17 +226,44 @@ class OBJAsset: Asset
         
         foreach(i, ref ObjFace f; tmpFaces)
         {
-            mesh.vertices[index] = tmpVertices[f.v[0]];
-            mesh.vertices[index+1] = tmpVertices[f.v[1]];
-            mesh.vertices[index+2] = tmpVertices[f.v[2]];
+            if (numVerts)
+            {
+                mesh.vertices[index] = tmpVertices[f.v[0]];
+                mesh.vertices[index+1] = tmpVertices[f.v[1]];
+                mesh.vertices[index+2] = tmpVertices[f.v[2]];
+            }
+            else
+            {
+                mesh.vertices[index] = Vector3f(0, 0, 0);
+                mesh.vertices[index+1] = Vector3f(0, 0, 0);
+                mesh.vertices[index+2] = Vector3f(0, 0, 0);
+            }
 
-            mesh.normals[index] = tmpNormals[f.n[0]];
-            mesh.normals[index+1] = tmpNormals[f.n[1]];
-            mesh.normals[index+2] = tmpNormals[f.n[2]];
+            if (numNormals)
+            {
+                mesh.normals[index] = tmpNormals[f.n[0]];
+                mesh.normals[index+1] = tmpNormals[f.n[1]];
+                mesh.normals[index+2] = tmpNormals[f.n[2]];
+            }
+            else
+            {
+                mesh.normals[index] = Vector3f(0, 0, 0);
+                mesh.normals[index+1] = Vector3f(0, 0, 0);
+                mesh.normals[index+2] = Vector3f(0, 0, 0);
+            }
             
-            mesh.texcoords[index] = tmpTexcoords[f.t[0]];
-            mesh.texcoords[index+1] = tmpTexcoords[f.t[1]];
-            mesh.texcoords[index+2] = tmpTexcoords[f.t[2]];
+            if (numTexcoords)
+            {
+                mesh.texcoords[index] = tmpTexcoords[f.t[0]];
+                mesh.texcoords[index+1] = tmpTexcoords[f.t[1]];
+                mesh.texcoords[index+2] = tmpTexcoords[f.t[2]];
+            }
+            else
+            {
+                mesh.texcoords[index] = Vector2f(0, 0);
+                mesh.texcoords[index+1] = Vector2f(0, 0);
+                mesh.texcoords[index+2] = Vector2f(0, 0);
+            }
             
             mesh.indices[i][0] = index;
             mesh.indices[i][1] = index + 1;
@@ -286,6 +271,8 @@ class OBJAsset: Asset
             
             index += 3;
         }
+        
+        // TODO: generate normals if they are not present
         
         if (tmpVertices.length)
             Delete(tmpVertices);

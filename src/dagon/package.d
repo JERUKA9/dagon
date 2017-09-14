@@ -44,6 +44,7 @@ public
     import dagon.graphics.shadow;
     
     import dagon.graphics.materials.generic;
+    import dagon.graphics.materials.bp;
     
     import dagon.ui.font;
     import dagon.ui.ftfont;
