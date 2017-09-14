@@ -131,9 +131,7 @@ class BaseScene3D: Scene
     override void onRender()
     {     
         prepareRender();
-        rc3d.apply();
         renderEntities3D(&rc3d);
-        rc2d.apply();
         renderEntities2D(&rc2d);
     } 
 }

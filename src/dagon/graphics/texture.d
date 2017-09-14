@@ -106,8 +106,7 @@ class Texture: Owner
 
         glGenerateMipmap(GL_TEXTURE_2D);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, numMipmapLevels-1);
-        glTexStorage2D(GL_TEXTURE_2D, numMipmapLevels, intFormat, width, height);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, numMipmapLevels - 1);
 
         glBindTexture(GL_TEXTURE_2D, 0);
     }

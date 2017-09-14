@@ -41,6 +41,7 @@ public
     import dagon.graphics.environment;
     import dagon.graphics.mesh;
     import dagon.graphics.view;
+    import dagon.graphics.shadow;
     
     import dagon.graphics.materials.generic;
     

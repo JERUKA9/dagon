@@ -10,6 +10,7 @@ Implemented features:
 * Rendering meshes with VAO/VBO
 * OBJ models loading
 * Plane shape
+* Shadows
 * Skeleton GLSL material backend
 * Freeview
 * First person view

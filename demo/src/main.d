@@ -14,6 +14,10 @@ class BlinnPhongBackend: GLSLMaterialBackend
         uniform mat4 normalMatrix;
         uniform mat4 projectionMatrix;
         
+        uniform mat4 shadowMatrix1;
+        uniform mat4 shadowMatrix2;
+        uniform mat4 shadowMatrix3;
+        
         layout (location = 0) in vec3 va_Vertex;
         layout (location = 1) in vec3 va_Normal;
         layout (location = 2) in vec2 va_Texcoord;
@@ -22,12 +26,24 @@ class BlinnPhongBackend: GLSLMaterialBackend
         out vec3 eyeNormal;
         out vec2 texCoord;
         
+        out vec4 shadowCoord1;
+        out vec4 shadowCoord2;
+        out vec4 shadowCoord3;
+        
+        const float eyeSpaceNormalShift = 0.05;
+        
         void main()
         {
             texCoord = va_Texcoord;
             eyeNormal = (normalMatrix * vec4(va_Normal, 0.0)).xyz;
             vec4 pos = modelViewMatrix * vec4(va_Vertex, 1.0);
             eyePosition = pos.xyz;
+            
+            vec4 posShifted = pos + vec4(eyeNormal * eyeSpaceNormalShift, 0.0);
+            shadowCoord1 = shadowMatrix1 * posShifted;
+            shadowCoord2 = shadowMatrix2 * posShifted;
+            shadowCoord3 = shadowMatrix3 * posShifted;
+            
             gl_Position = projectionMatrix * pos;
         }
     };
@@ -46,9 +62,20 @@ class BlinnPhongBackend: GLSLMaterialBackend
         uniform float parallaxScale;
         uniform float parallaxBias;
         
+        uniform sampler2DArrayShadow shadowTextureArray;
+        uniform float shadowTextureSize;
+        uniform bool useShadows;
+        
+        uniform vec3 sunDirection;
+        uniform vec3 sunColor;
+        
         in vec3 eyePosition;
         in vec3 eyeNormal;
         in vec2 texCoord;
+        
+        in vec4 shadowCoord1;
+        in vec4 shadowCoord2;
+        in vec4 shadowCoord3;
         
         out vec4 frag_color;
         
@@ -66,6 +93,38 @@ class BlinnPhongBackend: GLSLMaterialBackend
             vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
             float invmax = inversesqrt(max(dot(T, T), dot(B, B)));
             return mat3(T * invmax, B * invmax, N);
+        }
+        
+        float shadowLookup(sampler2DArrayShadow depths, float layer, vec4 coord, vec2 offset)
+        {
+            float texelSize = 1.0 / shadowTextureSize;
+            vec2 v = offset * texelSize * coord.w;
+            vec4 c = (coord + vec4(v.x, v.y, 0.0, 0.0)) / coord.w;
+            c.w = c.z;
+            c.z = layer;
+            float s = texture(depths, c);
+            return s;
+        }
+        
+        float pcf(sampler2DArrayShadow depths, float layer, vec4 coord, float radius, float yshift)
+        {
+            float s = 0.0;
+            float x, y;
+	        for (y = -radius ; y < radius ; y += 1.0)
+	        for (x = -radius ; x < radius ; x += 1.0)
+            {
+	            s += shadowLookup(depths, layer, coord, vec2(x, y + yshift));
+            }
+	        s /= radius * radius * 4.0;
+            return s;
+        }
+        
+        float weight(vec4 tc)
+        {
+            vec2 proj = vec2(tc.x / tc.w, tc.y / tc.w);
+            proj = (1.0 - abs(proj * 2.0 - 1.0)) * 8.0;
+            proj = clamp(proj, 0.0, 1.0);
+            return min(proj.x, proj.y);
         }
         
         void main()
@@ -90,17 +149,36 @@ class BlinnPhongBackend: GLSLMaterialBackend
             float gloss = 1.0 - roughness;
             float shininess = gloss * 128.0;
             
-            const float ambient = 0.3;
+            // TODO: read ambient params from uniforms
+            const float ambient = 0.1;
             
-            float diffuse = clamp(dot(L, N), 0.0, 1.0);
+            float sunDiffBrightness = clamp(dot(N, sunDirection), 0.0, 1.0);
+            vec3 halfEye = normalize(sunDirection + E);
+            float NH = dot(N, halfEye);
+            float sunSpecBrightness = pow(max(NH, 0.0), shininess) * gloss;
             
-            vec3 hE = normalize(L + E);
-            float NH = dot(N, hE);
-            float specular = pow(max(NH, 0.0), shininess) * gloss;
+            // Calculate shadow from 3 cascades
+            float s1, s2, s3;
+            if (useShadows)
+            {
+                s1 = pcf(shadowTextureArray, 0.0, shadowCoord1, 3.0, 0.0);
+                s2 = pcf(shadowTextureArray, 1.0, shadowCoord2, 2.0, 0.0);
+                s3 = pcf(shadowTextureArray, 2.0, shadowCoord3, 1.0, 0.0);
+                float w1 = weight(shadowCoord1);
+                float w2 = weight(shadowCoord2);
+                float w3 = weight(shadowCoord3);
+                s3 = mix(1.0, s3, w3); 
+                s2 = mix(s3, s2, w2);
+                s1 = mix(s2, s1, w1); // s1 stores resulting shadow value
+            }
+            else
+            {
+                s1 = 1.0f;
+            }
             
-            vec4 tex = texture(diffuseTexture, shiftedTexCoord);
-            frag_color = tex * ambient + tex * diffuse * (1.0 - ambient) + vec4(1.0) * specular;
-            frag_color.a = 1.0;
+            vec4 diffuseColor = texture(diffuseTexture, shiftedTexCoord);
+            vec3 objColor = diffuseColor.rgb * (vec3(ambient) + sunColor * sunDiffBrightness * (1.0 - ambient) * s1) + sunColor * sunSpecBrightness * s1;
+            frag_color = vec4(objColor, 1.0);
         }
     };
     
@@ -112,6 +190,13 @@ class BlinnPhongBackend: GLSLMaterialBackend
     GLint projectionMatrixLoc;
     GLint normalMatrixLoc;
     
+    GLint shadowMatrix1Loc;
+    GLint shadowMatrix2Loc; 
+    GLint shadowMatrix3Loc;
+    GLint shadowTextureArrayLoc;
+    GLint shadowTextureSizeLoc;
+    GLint useShadowsLoc;
+    
     GLint roughnessLoc;
     
     GLint parallaxScaleLoc;
@@ -120,6 +205,13 @@ class BlinnPhongBackend: GLSLMaterialBackend
     GLint diffuseTextureLoc;
     GLint normalTextureLoc;
     GLint heightTextureLoc;
+    
+    GLint sunDirectionLoc;
+    GLint sunColorLoc;
+    
+    CascadedShadowMap shadowMap;
+    Matrix4x4f defaultShadowMat;
+    Vector3f defaultLightDir;
     
     this(Owner o)
     {
@@ -130,6 +222,13 @@ class BlinnPhongBackend: GLSLMaterialBackend
         projectionMatrixLoc = glGetUniformLocation(shaderProgram, "projectionMatrix");
         normalMatrixLoc = glGetUniformLocation(shaderProgram, "normalMatrix");
         
+        shadowMatrix1Loc = glGetUniformLocation(shaderProgram, "shadowMatrix1");
+        shadowMatrix2Loc = glGetUniformLocation(shaderProgram, "shadowMatrix2");
+        shadowMatrix3Loc = glGetUniformLocation(shaderProgram, "shadowMatrix3");
+        shadowTextureArrayLoc = glGetUniformLocation(shaderProgram, "shadowTextureArray");
+        shadowTextureSizeLoc = glGetUniformLocation(shaderProgram, "shadowTextureSize");
+        useShadowsLoc = glGetUniformLocation(shaderProgram, "useShadows");
+        
         roughnessLoc = glGetUniformLocation(shaderProgram, "roughness"); 
        
         parallaxScaleLoc = glGetUniformLocation(shaderProgram, "parallaxScale");
@@ -138,6 +237,9 @@ class BlinnPhongBackend: GLSLMaterialBackend
         diffuseTextureLoc = glGetUniformLocation(shaderProgram, "diffuseTexture");
         normalTextureLoc = glGetUniformLocation(shaderProgram, "normalTexture");
         heightTextureLoc = glGetUniformLocation(shaderProgram, "heightTexture");
+        
+        sunDirectionLoc = glGetUniformLocation(shaderProgram, "sunDirection");
+        sunColorLoc = glGetUniformLocation(shaderProgram, "sunColor");
     }
     
     Texture makeOnePixelTexture(Material mat, Color4f color)
@@ -155,6 +257,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
         auto inormal = "normal" in mat.inputs;
         auto iheight = "height" in mat.inputs;
         auto iroughness = "roughness" in mat.inputs;
+        bool shadowsEnabled = boolProp(mat, "shadowsEnabled");
         
         glEnable(GL_CULL_FACE);
         
@@ -165,6 +268,19 @@ class BlinnPhongBackend: GLSLMaterialBackend
         glUniformMatrix4fv(modelViewMatrixLoc, 1, GL_FALSE, rc.modelViewMatrix.arrayof.ptr);
         glUniformMatrix4fv(projectionMatrixLoc, 1, GL_FALSE, rc.projectionMatrix.arrayof.ptr);
         glUniformMatrix4fv(normalMatrixLoc, 1, GL_FALSE, rc.normalMatrix.arrayof.ptr);
+        
+        // Environment parameters
+        Vector4f sunHGVector = Vector4f(0.0f, 1.0f, 0.0, 0.0f);
+        Vector3f sunColor = Vector3f(1.0f, 1.0f, 1.0f);
+        if (rc.environment)
+        {
+            sunHGVector = Vector4f(rc.environment.sunDirection);
+            sunHGVector.w = 0.0;
+            sunColor = rc.environment.sunColor;
+        }
+        Vector3f sunDirectionEye = sunHGVector * rc.viewMatrix;
+        glUniform3fv(sunDirectionLoc, 1, sunDirectionEye.arrayof.ptr);
+        glUniform3fv(sunColorLoc, 1, sunColor.arrayof.ptr);
         
         // PBR parameters
         glUniform1f(roughnessLoc, iroughness.asFloat);
@@ -212,6 +328,29 @@ class BlinnPhongBackend: GLSLMaterialBackend
         iheight.texture.bind();
         glUniform1i(heightTextureLoc, 2);
         
+        // Texture 3 - shadow map cascades (3 layer texture array)
+        if (shadowMap && shadowsEnabled)
+        {
+            glActiveTexture(GL_TEXTURE3);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, shadowMap.depthTexture);
+
+            glUniform1i(shadowTextureArrayLoc, 3);
+            glUniform1f(shadowTextureSizeLoc, cast(float)shadowMap.size);
+            glUniformMatrix4fv(shadowMatrix1Loc, 1, 0, shadowMap.area1.shadowMatrix.arrayof.ptr);
+            glUniformMatrix4fv(shadowMatrix2Loc, 1, 0, shadowMap.area2.shadowMatrix.arrayof.ptr);
+            glUniformMatrix4fv(shadowMatrix3Loc, 1, 0, shadowMap.area3.shadowMatrix.arrayof.ptr);
+            glUniform1i(useShadowsLoc, 1);
+            
+            // TODO: shadowFilter
+        }
+        else
+        {        
+            glUniformMatrix4fv(shadowMatrix1Loc, 1, 0, defaultShadowMat.arrayof.ptr);
+            glUniformMatrix4fv(shadowMatrix2Loc, 1, 0, defaultShadowMat.arrayof.ptr);
+            glUniformMatrix4fv(shadowMatrix3Loc, 1, 0, defaultShadowMat.arrayof.ptr);
+            glUniform1i(useShadowsLoc, 0);
+        }
+        
         glActiveTexture(GL_TEXTURE0);
     }
     
@@ -230,6 +369,9 @@ class BlinnPhongBackend: GLSLMaterialBackend
         glActiveTexture(GL_TEXTURE2);
         iheight.texture.unbind();
         
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        
         glActiveTexture(GL_TEXTURE0);
         
         glUseProgram(0);
@@ -247,9 +389,13 @@ class TestScene: BaseScene3D
     TextureAsset aTexStoneNormal;
     TextureAsset aTexStoneHeight;
     
-    OBJAsset obj;
+    OBJAsset aImrod;
     
     BlinnPhongBackend bpb;
+    
+    CascadedShadowMap shadowMap;
+    float r = -45.0f;
+    float ry = 0.0f;
     
     FirstPersonView fpview;
 
@@ -269,19 +415,22 @@ class TestScene: BaseScene3D
         aTexStoneNormal = addTextureAsset("data/textures/stone-normal.png");
         aTexStoneHeight = addTextureAsset("data/textures/stone-height.png");
         
-        obj = New!OBJAsset(assetManager);
-        addAsset(obj, "data/obj/imrod.obj");
+        aImrod = New!OBJAsset(assetManager);
+        addAsset(aImrod, "data/obj/imrod.obj");
     }
 
     override void onAllocate()
     {
         super.onAllocate();
         
-        fpview = New!FirstPersonView(eventManager, Vector3f(10.0f, 3.0f, 0.0f), assetManager);
+        fpview = New!FirstPersonView(eventManager, Vector3f(10.0f, 1.8f, 0.0f), assetManager);
         fpview.camera.turn = -90.0f;
         view = fpview;
         
+        shadowMap = New!CascadedShadowMap(1024, this, assetManager);
+        
         bpb = New!BlinnPhongBackend(assetManager);
+        bpb.shadowMap = shadowMap;
         
         auto mat1 = New!GenericMaterial(bpb, assetManager);
         mat1.diffuse = aTexImrodDiffuse.texture;
@@ -292,12 +441,13 @@ class TestScene: BaseScene3D
         mat2.normal = aTexStoneNormal.texture;
         mat2.height = aTexStoneHeight.texture;
         
-        Entity e = createEntity3D();
-        e.drawable = obj.mesh;
-        e.material = mat1;
+        Entity eImrod = createEntity3D();
+        eImrod.scaling = Vector3f(0.5, 0.5, 0.5);
+        eImrod.drawable = aImrod.mesh;
+        eImrod.material = mat1;
         
         Entity ePlane = createEntity3D();
-        ePlane.drawable = New!ShapePlane(8, 8, 2, assetManager);
+        ePlane.drawable = New!ShapePlane(10, 10, 5, assetManager);
         ePlane.material = mat2;
         
         auto text = New!TextLine(aFont.font, "Hello, World! Привет, мир!", assetManager);
@@ -321,7 +471,7 @@ class TestScene: BaseScene3D
         }
     }
     
-    void controlCharacter(double dt)
+    void updateCharacter(double dt)
     {
         Vector3f forward = fpview.camera.characterMatrix.forward;
         Vector3f right = fpview.camera.characterMatrix.right; 
@@ -334,9 +484,35 @@ class TestScene: BaseScene3D
         fpview.camera.position += dir * speed * dt;
     }
     
+    void updateEnvironment(double dt)
+    {
+        if (eventManager.keyPressed[KEY_DOWN]) r += 30.0f * dt;
+        if (eventManager.keyPressed[KEY_UP]) r -= 30.0f * dt;
+        if (eventManager.keyPressed[KEY_LEFT]) ry += 30.0f * dt;
+        if (eventManager.keyPressed[KEY_RIGHT]) ry -= 30.0f * dt;
+        environment.sunRotation = rotationQuaternion(Axis.y, degtorad(ry)) * rotationQuaternion(Axis.x, degtorad(r));
+    }
+    
+    void updateShadow(double dt)
+    {
+        shadowMap.position = fpview.camera.position;
+        shadowMap.update(dt);
+    }
+    
     override void onLogicsUpdate(double dt)
     {  
-        controlCharacter(dt);
+        updateCharacter(dt);
+        updateEnvironment(dt);
+        updateShadow(dt);
+    }
+    
+    override void onRender()
+    {
+        shadowMap.render(&rc3d);
+       
+        prepareRender();
+        renderEntities3D(&rc3d);
+        renderEntities2D(&rc2d);
     }
     
     override void onRelease()
@@ -371,5 +547,4 @@ void main(string[] args)
     app.run();
     Delete(app);
     writeln("Allocated memory at end: ", allocatedMemory);
-    //printMemoryLog();
 }
