@@ -130,12 +130,14 @@ class TestScene: BaseScene3D
         mStone.normal = aTexStoneNormal.texture;
         mStone.height = aTexStoneHeight.texture;
         mStone.roughness = 0.2f;
+        mStone.parallax = ParallaxOcclusionMapping;
         
         auto mGround = New!GenericMaterial(bpb, assetManager);
         mGround.diffuse = aTexStone2Diffuse.texture;
         mGround.normal = aTexStone2Normal.texture;
         mGround.height = aTexStone2Height.texture;
         mGround.roughness = 0.8f;
+        mGround.parallax = ParallaxSimple;
         
         Entity eBuilding = createEntity3D();
         eBuilding.drawable = aBuilding.mesh;
@@ -160,8 +162,7 @@ class TestScene: BaseScene3D
         eGround.drawable = New!ShapePlane(200, 200, 100, assetManager);
         eGround.material = mGround;
         eGround.position.y = 0.8f;
-        
-        //ShapeBox sCrate = New!ShapeBox(1, 1, 1, assetManager);
+
         gCrate = New!GeomBox(Vector3f(1.0f, 1.0f, 1.0f));
 
         foreach(i; 0..5)
@@ -188,7 +189,8 @@ class TestScene: BaseScene3D
         eText.drawable = text;
         eText.position = Vector3f(16.0f, eventManager.windowHeight - 30.0f, 0.0f);
         
-        environment.backgroundColor = Color4f(0.2f, 0.2f, 0.2f, 1.0f);
+        environment.useSkyColors = true;
+        //environment.backgroundColor = Color4f(0.2f, 0.2f, 0.2f, 1.0f);
         
         initializedPhysics = true;
     }

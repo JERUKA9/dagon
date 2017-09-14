@@ -23,13 +23,34 @@ interface GenericMaterialBackend
         return res;
     }
     
+    final int intProp(GenericMaterial mat, string prop)
+    {
+        auto p = prop in mat.inputs;
+        int res = 0;
+        if (p.type == MaterialInputType.Bool ||
+            p.type == MaterialInputType.Integer)
+        {
+            res = p.asInteger;
+        }
+        else if (p.type == MaterialInputType.Float)
+        {
+            res = cast(int)p.asFloat;
+        }
+        return res;
+    }
+    
     void bind(GenericMaterial mat, RenderingContext* rc);
     void unbind(GenericMaterial mat);
 }
 
-enum int SF_None = 0;
-enum int SF_PCF3 = 1;
-enum int SF_PCF5 = 2;
+enum int None = 0;
+
+enum int ShadowFilterNone = 0;
+enum int ShadowFilterPCF = 1;
+
+enum int ParallaxNone = 0;
+enum int ParallaxSimple = 1;
+enum int ParallaxOcclusionMapping = 2;
 
 class GenericMaterial: Material
 {
@@ -49,11 +70,11 @@ class GenericMaterial: Material
         setInput("metallic", 0.0f);
         setInput("normal", Vector3f(0.0f, 0.0f, 1.0f));
         setInput("height", 0.0f);
-        setInput("parallaxEnabled", false);
+        setInput("parallax", ParallaxNone);
         setInput("parallaxScale", 0.03f);
         setInput("parallaxBias", -0.01f);
         setInput("shadowsEnabled", true);
-        setInput("shadowFilter", SF_None);
+        setInput("shadowFilter", ShadowFilterPCF);
         setInput("fogEnabled", true);
 
         _backend = backend;

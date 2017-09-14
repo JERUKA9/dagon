@@ -76,6 +76,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
         
         uniform float roughness;
         
+        uniform int parallaxMethod;
         uniform float parallaxScale;
         uniform float parallaxBias;
         
@@ -98,7 +99,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
         
         const vec4 lightPos = vec4(0.0, 8.0, 4.0, 1.0);
         
-        mat3 cotangentFrame(vec3 N, vec3 p, vec2 uv)
+        mat3 cotangentFrame(in vec3 N, in vec3 p, in vec2 uv)
         {
             vec3 dp1 = dFdx(p);
             vec3 dp2 = dFdy(p);
@@ -112,7 +113,45 @@ class BlinnPhongBackend: GLSLMaterialBackend
             return mat3(T * invmax, B * invmax, N);
         }
         
-        float shadowLookup(sampler2DArrayShadow depths, float layer, vec4 coord, vec2 offset)
+        vec2 parallaxMapping(in vec3 V, in vec2 T, in float scale)
+        {
+            float height = texture(heightTexture, T).r;
+            height = height * parallaxScale + parallaxBias;
+            return T + (height * V.xy);
+        }
+        
+        // Based on code written by Igor Dykhta (Sun and Black Cat)
+        // http://sunandblackcat.com/tipFullView.php?topicid=28
+        vec2 parallaxOcclusionMapping(in vec3 V, in vec2 T, in float scale)
+        {
+            const float minLayers = 10;
+            const float maxLayers = 15;
+            float numLayers = mix(maxLayers, minLayers, abs(dot(vec3(0, 0, 1), V)));
+
+            float layerHeight = 1.0 / numLayers;
+            float curLayerHeight = 0;
+            vec2 dtex = scale * V.xy / V.z / numLayers;
+
+            vec2 currentTextureCoords = T;
+
+            float heightFromTexture = texture(heightTexture, currentTextureCoords).r;
+
+            while(heightFromTexture > curLayerHeight)
+            {
+                curLayerHeight += layerHeight;
+                currentTextureCoords += dtex;
+                heightFromTexture = texture(heightTexture, currentTextureCoords).r;
+            }
+
+            vec2 prevTCoords = currentTextureCoords - dtex;
+
+            float nextH = heightFromTexture - curLayerHeight;
+            float prevH = texture(heightTexture, prevTCoords).r - curLayerHeight + layerHeight;
+            float weight = nextH / (nextH - prevH);
+            return prevTCoords * weight + currentTextureCoords * (1.0-weight);
+        }
+        
+        float shadowLookup(in sampler2DArrayShadow depths, in float layer, in vec4 coord, in vec2 offset)
         {
             float texelSize = 1.0 / shadowTextureSize;
             vec2 v = offset * texelSize * coord.w;
@@ -123,7 +162,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
             return s;
         }
         
-        float pcf(sampler2DArrayShadow depths, float layer, vec4 coord, float radius, float yshift)
+        float pcf(in sampler2DArrayShadow depths, in float layer, in vec4 coord, in float radius, in float yshift)
         {
             float s = 0.0;
             float x, y;
@@ -136,7 +175,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
             return s;
         }
         
-        float weight(vec4 tc)
+        float weight(in vec4 tc)
         {
             vec2 proj = vec2(tc.x / tc.w, tc.y / tc.w);
             proj = (1.0 - abs(proj * 2.0 - 1.0)) * 8.0;
@@ -151,13 +190,16 @@ class BlinnPhongBackend: GLSLMaterialBackend
                         
             vec3 N = normalize(eyeNormal);
             vec3 E = normalize(-eyePosition);
-            
             mat3 TBN = cotangentFrame(eyeNormal, eyePosition, texCoord);
-            
-            float height = texture2D(heightTexture, texCoord).r;
-            height = height * parallaxScale + parallaxBias;
-            vec3 Ee = normalize(E * TBN);
-            vec2 shiftedTexCoord = texCoord + (height * Ee.xy);
+            vec3 tE = normalize(E * TBN);
+
+            vec2 shiftedTexCoord = texCoord;
+            if (parallaxMethod == 0)
+                shiftedTexCoord = texCoord;
+            else if (parallaxMethod == 1)
+                shiftedTexCoord = parallaxMapping(tE, texCoord, parallaxScale);
+            else if (parallaxMethod == 2)
+                shiftedTexCoord = parallaxOcclusionMapping(tE, texCoord, parallaxScale);
             
             vec3 tN = normalize(texture2D(normalTexture, shiftedTexCoord).rgb * 2.0 - 1.0);
             tN.y = -tN.y;
@@ -216,6 +258,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
     
     GLint roughnessLoc;
     
+    GLint parallaxMethodLoc;
     GLint parallaxScaleLoc;
     GLint parallaxBiasLoc;
     
@@ -248,6 +291,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
         
         roughnessLoc = glGetUniformLocation(shaderProgram, "roughness"); 
        
+        parallaxMethodLoc = glGetUniformLocation(shaderProgram, "parallaxMethod");
         parallaxScaleLoc = glGetUniformLocation(shaderProgram, "parallaxScale");
         parallaxBiasLoc = glGetUniformLocation(shaderProgram, "parallaxBias");
         
@@ -275,6 +319,11 @@ class BlinnPhongBackend: GLSLMaterialBackend
         auto iheight = "height" in mat.inputs;
         auto iroughness = "roughness" in mat.inputs;
         bool shadowsEnabled = boolProp(mat, "shadowsEnabled");
+        int parallaxMethod = intProp(mat, "parallax");
+        if (parallaxMethod > ParallaxOcclusionMapping)
+            parallaxMethod = ParallaxOcclusionMapping;
+        if (parallaxMethod < 0)
+            parallaxMethod = 0;
         
         glEnable(GL_CULL_FACE);
         
@@ -307,16 +356,18 @@ class BlinnPhongBackend: GLSLMaterialBackend
         float parallaxBias = 0.0f;
         if (iheight.texture is null)
         {
-            Color4f color = Color4f(0.3, 0.3, 0.3, 0);
+            // These is for simple parallax mapping:
+            Color4f color = Color4f(0.0, 0.0, 0.0, 0);
             iheight.texture = makeOnePixelTexture(mat, color);
         }
         else
-        {
+        {          
             parallaxScale = 0.03f;
             parallaxBias = -0.01f;
         }
         glUniform1f(parallaxScaleLoc, parallaxScale);
         glUniform1f(parallaxBiasLoc, parallaxBias);
+        glUniform1i(parallaxMethodLoc, parallaxMethod);
         
         // Texture 0 - diffuse texture
         if (idiffuse.texture is null)
