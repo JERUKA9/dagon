@@ -71,6 +71,11 @@ class TestScene: BaseScene3D
     CharacterController character;
     BVHTree!Triangle bvh;
     bool initializedPhysics = false;
+    
+    Framebuffer fb;
+    Framebuffer fbAA;
+    PostFilterFXAA fxaa;
+    PostFilterLensDistortion lens;
 
     this(SceneManager smngr)
     {
@@ -111,6 +116,11 @@ class TestScene: BaseScene3D
         fpview = New!FirstPersonView(eventManager, Vector3f(15.0f, 1.8f, 0.0f), assetManager);
         fpview.camera.turn = -90.0f;
         view = fpview;
+        
+        fb = New!Framebuffer(eventManager.windowWidth, eventManager.windowHeight, assetManager);
+        fbAA = New!Framebuffer(eventManager.windowWidth, eventManager.windowHeight, assetManager);
+        fxaa = New!PostFilterFXAA(fb, assetManager);
+        lens = New!PostFilterLensDistortion(fbAA, assetManager);
         
         shadowMap = New!CascadedShadowMap(1024, this, assetManager);
         
@@ -190,7 +200,6 @@ class TestScene: BaseScene3D
         eText.position = Vector3f(16.0f, eventManager.windowHeight - 30.0f, 0.0f);
         
         environment.useSkyColors = true;
-        //environment.backgroundColor = Color4f(0.2f, 0.2f, 0.2f, 1.0f);
         
         initializedPhysics = true;
     }
@@ -251,9 +260,19 @@ class TestScene: BaseScene3D
     override void onRender()
     {
         shadowMap.render(&rc3d);
-       
-        prepareRender();
+        
+        fb.bind();
+        prepareRender();        
         renderEntities3D(&rc3d);
+        fb.unbind();
+        
+        fbAA.bind();
+        prepareRender();
+        fxaa.render(&rc2d);
+        fbAA.unbind();
+        
+        prepareRender();
+        lens.render(&rc2d);
         renderEntities2D(&rc2d);
     }
     

@@ -16,6 +16,7 @@ Implemented features:
 * Parallax occlusion mapping
 * Freeview
 * First person view
+* RTT, post-processing
 * TTF fonts and text rendering
 
 [![Screenshot1](/screenshots/imrod-thumb.jpg)](/screenshots/imrod.jpg)
