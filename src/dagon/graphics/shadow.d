@@ -300,7 +300,7 @@ class CascadedShadowMap: Owner, Drawable
     
     void render(RenderingContext* rc)
     {
-        glEnable(GL_DEPTH_TEST);
+        //glEnable(GL_DEPTH_TEST);
         
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer1);
 
@@ -352,6 +352,6 @@ class CascadedShadowMap: Owner, Drawable
         
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        glDisable(GL_DEPTH_TEST);
+        //glDisable(GL_DEPTH_TEST);
     }
 }

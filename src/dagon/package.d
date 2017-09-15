@@ -42,11 +42,13 @@ public
     import dagon.graphics.mesh;
     import dagon.graphics.view;
     import dagon.graphics.shadow;
+    import dagon.graphics.clustered;
     import dagon.graphics.framebuffer;
     import dagon.graphics.postproc;
     
     import dagon.graphics.materials.generic;
     import dagon.graphics.materials.bp;
+    import dagon.graphics.materials.bpclustered;
     
     import dagon.graphics.filters.fxaa;
     import dagon.graphics.filters.lens;

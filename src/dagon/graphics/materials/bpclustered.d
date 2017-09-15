@@ -1,4 +1,4 @@
-module dagon.graphics.materials.bp;
+module dagon.graphics.materials.bpclustered;
 
 import std.stdio;
 import std.math;
@@ -17,19 +17,12 @@ import derelict.opengl.gl;
 import dagon.core.ownership;
 import dagon.graphics.rc;
 import dagon.graphics.shadow;
+import dagon.graphics.clustered;
 import dagon.graphics.texture;
 import dagon.graphics.material;
 import dagon.graphics.materials.generic;
 
-/*
- * Standard material backend for simple ambient-diffuse-specular BRDF.
- * Works with a single directional light ("sun") 
- * which is controlled via Environment object of the current RenderingContext.
- * Supports Blinn-Phong specular, normal mapping, 
- * parallax mapping (including parallax occlusion mapping), shadows, fog.
- */
-
-class BlinnPhongBackend: GLSLMaterialBackend
+class BlinnPhongClusteredBackend: GLSLMaterialBackend
 {
     private string vsText = 
     q{
@@ -38,6 +31,8 @@ class BlinnPhongBackend: GLSLMaterialBackend
         uniform mat4 modelViewMatrix;
         uniform mat4 normalMatrix;
         uniform mat4 projectionMatrix;
+        
+        uniform mat4 invViewMatrix;
         
         uniform mat4 shadowMatrix1;
         uniform mat4 shadowMatrix2;
@@ -51,6 +46,8 @@ class BlinnPhongBackend: GLSLMaterialBackend
         out vec3 eyeNormal;
         out vec2 texCoord;
         
+        out vec3 worldPosition;
+        
         out vec4 shadowCoord1;
         out vec4 shadowCoord2;
         out vec4 shadowCoord3;
@@ -63,6 +60,8 @@ class BlinnPhongBackend: GLSLMaterialBackend
             eyeNormal = (normalMatrix * vec4(va_Normal, 0.0)).xyz;
             vec4 pos = modelViewMatrix * vec4(va_Vertex, 1.0);
             eyePosition = pos.xyz;
+            
+            worldPosition = (invViewMatrix * pos).xyz;
             
             vec4 posShifted = pos + vec4(eyeNormal * eyeSpaceNormalShift, 0.0);
             shadowCoord1 = shadowMatrix1 * posShifted;
@@ -99,9 +98,18 @@ class BlinnPhongBackend: GLSLMaterialBackend
         uniform float fogStart;
         uniform float fogEnd;
         
+        uniform float sceneSize;
+        uniform usampler2D lightClusterTexture;
+        uniform usampler1D lightIndexTexture;
+        //uniform float lightIndexTextureWidth;
+        uniform sampler2D lightsTexture;
+        //uniform float lightTextureWidth;
+        
         in vec3 eyePosition;
         in vec3 eyeNormal;
         in vec2 texCoord;
+        
+        in vec3 worldPosition;
         
         in vec4 shadowCoord1;
         in vec4 shadowCoord2;
@@ -243,6 +251,34 @@ class BlinnPhongBackend: GLSLMaterialBackend
                 s1 = 1.0f;
             }
             
+            // Fetch light cluster slice
+            vec2 clusterCoord = (worldPosition.xz + sceneSize * 0.5) / sceneSize;
+            uint clusterIndex = texture(lightClusterTexture, clusterCoord).r;
+            uint offset = (clusterIndex << 16) >> 16;
+            uint size = (clusterIndex >> 16);
+            
+            vec3 pointDiffSum = vec3(0.0, 0.0, 0.0);
+            vec3 pointSpecSum = vec3(0.0, 0.0, 0.0);
+            for (uint i = 0u; i < size; i++)
+            {
+                // Read light data
+                uint u = texelFetch(lightIndexTexture, int(offset + i), 0).r;
+                vec3 lightPos = texelFetch(lightsTexture, ivec2(u, 0), 0).xyz; 
+                vec3 lightColor = texelFetch(lightsTexture, ivec2(u, 1), 0).xyz; 
+                float lightRadius = texelFetch(lightsTexture, ivec2(u, 2), 0).x;
+                
+                vec3 positionToLightSource = vec3(lightPos - eyePosition);
+                float distanceToLight = length(positionToLightSource);
+                vec3 directionToLight = normalize(positionToLightSource);
+
+                float attenuation = clamp(1.0 - (distanceToLight / lightRadius), 0.0, 1.0);
+                
+                pointDiffSum += lightColor * clamp(dot(N, directionToLight), 0.0, 1.0) * attenuation;
+                
+                float NH = dot(N, normalize(directionToLight + E));
+                pointSpecSum += lightColor * pow(max(NH, 0.0), shininess) * gloss * attenuation;
+            }
+            
             // Fog
             float fogDistance = gl_FragCoord.z / gl_FragCoord.w;
             float fogFactor = clamp((fogEnd - fogDistance) / (fogEnd - fogStart), 0.0, 1.0);
@@ -250,9 +286,8 @@ class BlinnPhongBackend: GLSLMaterialBackend
             // Diffuse texture
             vec4 diffuseColor = texture(diffuseTexture, shiftedTexCoord);
 
-            vec3 objColor = 
-                diffuseColor.rgb * (environmentColor.rgb + sunColor * sunDiffBrightness * s1) + 
-                sunColor * sunSpecBrightness * s1;
+            vec3 objColor = diffuseColor.rgb * (environmentColor.rgb + pointDiffSum + sunColor * sunDiffBrightness * s1) + 
+                pointSpecSum + sunColor * sunSpecBrightness * s1;
                 
             vec3 fragColor = mix(fogColor.rgb, objColor, fogFactor);
             
@@ -267,6 +302,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
     GLint modelViewMatrixLoc;
     GLint projectionMatrixLoc;
     GLint normalMatrixLoc;
+    GLint invViewMatrixLoc;
     
     GLint shadowMatrix1Loc;
     GLint shadowMatrix2Loc; 
@@ -292,18 +328,29 @@ class BlinnPhongBackend: GLSLMaterialBackend
     GLint fogEndLoc;
     GLint fogColorLoc;
     
+    GLint sceneSizeLoc;
+    GLint clusterTextureLoc;
+    GLint lightsTextureLoc;
+    //GLint locLightTextureWidth;
+    GLint indexTextureLoc;
+    //GLint locIndexTextureWidth;
+    
+    ClusteredLightManager lightManager;
     CascadedShadowMap shadowMap;
     Matrix4x4f defaultShadowMat;
     Vector3f defaultLightDir;
     
-    this(Owner o)
+    this(ClusteredLightManager clm, Owner o)
     {
         super(o);
+        
+        lightManager = clm;
 
         viewMatrixLoc = glGetUniformLocation(shaderProgram, "viewMatrix");
         modelViewMatrixLoc = glGetUniformLocation(shaderProgram, "modelViewMatrix");
         projectionMatrixLoc = glGetUniformLocation(shaderProgram, "projectionMatrix");
         normalMatrixLoc = glGetUniformLocation(shaderProgram, "normalMatrix");
+        invViewMatrixLoc = glGetUniformLocation(shaderProgram, "invViewMatrix");
         
         shadowMatrix1Loc = glGetUniformLocation(shaderProgram, "shadowMatrix1");
         shadowMatrix2Loc = glGetUniformLocation(shaderProgram, "shadowMatrix2");
@@ -328,6 +375,13 @@ class BlinnPhongBackend: GLSLMaterialBackend
         fogStartLoc = glGetUniformLocation(shaderProgram, "fogStart");
         fogEndLoc = glGetUniformLocation(shaderProgram, "fogEnd");
         fogColorLoc = glGetUniformLocation(shaderProgram, "fogColor");
+        
+        clusterTextureLoc = glGetUniformLocation(shaderProgram, "lightClusterTexture");
+        sceneSizeLoc = glGetUniformLocation(shaderProgram, "sceneSize");
+        lightsTextureLoc = glGetUniformLocation(shaderProgram, "lightsTexture");
+        //locLightTextureWidth = glGetUniformLocationARB(shaderProg, "lightTextureWidth");
+        indexTextureLoc = glGetUniformLocation(shaderProgram, "lightIndexTexture");
+        //locIndexTextureWidth = glGetUniformLocationARB(shaderProg, "lightIndexTextureWidth");
     }
     
     Texture makeOnePixelTexture(Material mat, Color4f color)
@@ -362,6 +416,7 @@ class BlinnPhongBackend: GLSLMaterialBackend
         glUniformMatrix4fv(modelViewMatrixLoc, 1, GL_FALSE, rc.modelViewMatrix.arrayof.ptr);
         glUniformMatrix4fv(projectionMatrixLoc, 1, GL_FALSE, rc.projectionMatrix.arrayof.ptr);
         glUniformMatrix4fv(normalMatrixLoc, 1, GL_FALSE, rc.normalMatrix.arrayof.ptr);
+        glUniformMatrix4fv(invViewMatrixLoc, 1, GL_FALSE, rc.invViewMatrix.arrayof.ptr);
         
         // Environment parameters
         Color4f environmentColor = Color4f(0.0f, 0.0f, 0.0f, 1.0f);
@@ -467,9 +522,24 @@ class BlinnPhongBackend: GLSLMaterialBackend
         
         // Texture 4 is reserved for PBR maps (roughness + metallic + emission)
         // Texture 5 is reserved for environment map
-        // Texture 6 is reserved for light clusters
-        // Texture 7 is reserved for light data
-        // Texture 8 is reserved for light indices per cluster
+
+        // Texture 6 - light clusters
+        glActiveTexture(GL_TEXTURE6);
+        lightManager.bindClusterTexture();
+        glUniform1i(clusterTextureLoc, 6);
+        glUniform1f(sceneSizeLoc, lightManager.sceneSize);
+        
+        // Texture 7 - light data
+        glActiveTexture(GL_TEXTURE7);
+        lightManager.bindLightTexture();
+        glUniform1i(lightsTextureLoc, 7);
+        //glUniform1f(lightTextureWidthLoc, lightManager.maxNumLights);
+        
+        // Texture 8 - light indices per cluster
+        glActiveTexture(GL_TEXTURE8);
+        lightManager.bindIndexTexture();
+        glUniform1i(indexTextureLoc, 8);   
+        //glUniform1f(indexTextureWidthLoc, lightManager.maxNumIndices);
         
         glActiveTexture(GL_TEXTURE0);
     }
@@ -491,6 +561,15 @@ class BlinnPhongBackend: GLSLMaterialBackend
         
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        
+        glActiveTexture(GL_TEXTURE6);
+        lightManager.unbindClusterTexture();
+        
+        glActiveTexture(GL_TEXTURE7);
+        lightManager.unbindLightTexture();
+        
+        glActiveTexture(GL_TEXTURE8);
+        lightManager.unbindIndexTexture();
         
         glActiveTexture(GL_TEXTURE0);
         

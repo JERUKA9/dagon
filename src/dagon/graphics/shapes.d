@@ -1,7 +1,9 @@
 module dagon.graphics.shapes;
 
+import std.math;
 import dlib.core.memory;
 import dlib.math.vector;
+import dlib.container.array;
 import derelict.opengl.gl;
 import dagon.core.interfaces;
 import dagon.core.ownership;

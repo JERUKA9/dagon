@@ -1,6 +1,7 @@
 ﻿module main;
 
 import std.stdio;
+import std.random;
 
 import dagon;
 
@@ -54,6 +55,8 @@ class TestScene: BaseScene3D
     OBJAsset aImrod;
     OBJAsset aCrate;
     
+    ClusteredLightManager clm;
+    BlinnPhongClusteredBackend bpcb;
     CascadedShadowMap shadowMap;
     float rx = -45.0f;
     float ry = 0.0f;
@@ -120,25 +123,29 @@ class TestScene: BaseScene3D
         fxaa = New!PostFilterFXAA(fb, assetManager);
         lens = New!PostFilterLensDistortion(fbAA, assetManager);
         
+        clm = New!ClusteredLightManager(view, assetManager);
+        bpcb = New!BlinnPhongClusteredBackend(clm, assetManager);
+        
         shadowMap = New!CascadedShadowMap(1024, this, assetManager);
         defaultMaterialBackend.shadowMap = shadowMap;
+        bpcb.shadowMap = shadowMap;
         
-        auto matImrod = createMaterial();
+        auto matImrod = createMaterial(bpcb);
         matImrod.diffuse = aTexImrodDiffuse.texture;
         matImrod.normal = aTexImrodNormal.texture;
         
-        auto mCrate = createMaterial();
+        auto mCrate = createMaterial(bpcb);
         mCrate.diffuse = aTexCrateDiffuse.texture;
         mCrate.roughness = 0.9f;
         
-        auto mStone = createMaterial();
+        auto mStone = createMaterial(bpcb);
         mStone.diffuse = aTexStoneDiffuse.texture;
         mStone.normal = aTexStoneNormal.texture;
         mStone.height = aTexStoneHeight.texture;
         mStone.roughness = 0.2f;
         mStone.parallax = ParallaxOcclusionMapping;
         
-        auto mGround = createMaterial();
+        auto mGround = createMaterial(bpcb);
         mGround.diffuse = aTexStone2Diffuse.texture;
         mGround.normal = aTexStone2Normal.texture;
         mGround.height = aTexStone2Height.texture;
@@ -200,6 +207,18 @@ class TestScene: BaseScene3D
         initializedPhysics = true;
     }
     
+    Color4f[9] lightColors = [
+        Color4f(1, 1, 1, 1),
+        Color4f(1, 0, 0, 1),
+        Color4f(1, 0.5, 0, 1),
+        Color4f(1, 1, 0, 1),
+        Color4f(0, 1, 0, 1),
+        Color4f(0, 1, 0.5, 1),
+        Color4f(0, 1, 1, 1),
+        Color4f(0, 0.5, 1, 1),
+        Color4f(0, 0, 1, 1)
+    ];
+    
     override void onMouseButtonDown(int button)
     {
         if (button == MB_LEFT)
@@ -208,6 +227,11 @@ class TestScene: BaseScene3D
                 fpview.active = false;
             else
                 fpview.active = true;
+        }
+        
+        if (button == MB_RIGHT)
+        {
+            clm.addLight(fpview.camera.position, lightColors[uniform(0, 9)] * 2.0f, uniform(2.0f, 5.0f));
         }
     }
     
@@ -251,6 +275,8 @@ class TestScene: BaseScene3D
         
         updateEnvironment(dt);
         updateShadow(dt);
+        
+        clm.update(dt);
     }
     
     override void onRender()
