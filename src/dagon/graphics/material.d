@@ -111,9 +111,9 @@ abstract class Material: Owner
         else static if (is(T == Texture))
         {
             input.texture = value;
-            if (value.format == GL_LUMINANCE)
+            if (value.format == GL_RED)
                 input.type = MaterialInputType.Float;
-            else if (value.format == GL_LUMINANCE_ALPHA)
+            else if (value.format == GL_RG)
                 input.type = MaterialInputType.Vec2;
             else if (value.format == GL_RGB)
                 input.type = MaterialInputType.Vec3;
