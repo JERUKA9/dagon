@@ -54,14 +54,18 @@ class TestScene: BaseScene3D
     OBJAsset aBuilding;
     OBJAsset aImrod;
     OBJAsset aCrate;
+    OBJAsset aSphere;
     
     ClusteredLightManager clm;
     BlinnPhongClusteredBackend bpcb;
+    SkyBackend skyb;
     CascadedShadowMap shadowMap;
     float rx = -45.0f;
     float ry = 0.0f;
     
     FirstPersonView fpview;
+    
+    Entity eSky;
     
     PhysicsWorld world;
     RigidBody bGround;
@@ -108,6 +112,9 @@ class TestScene: BaseScene3D
         
         aCrate = New!OBJAsset(assetManager);
         addAsset(aCrate, "data/obj/crate.obj");
+        
+        aSphere = New!OBJAsset(assetManager);
+        addAsset(aSphere, "data/obj/sphere.obj");
     }
 
     override void onAllocate()
@@ -125,6 +132,7 @@ class TestScene: BaseScene3D
         
         clm = New!ClusteredLightManager(view, 200.0f, 100, assetManager);
         bpcb = New!BlinnPhongClusteredBackend(clm, assetManager);
+        skyb = New!SkyBackend(assetManager);
         
         shadowMap = New!CascadedShadowMap(1024, this, assetManager);
         defaultMaterialBackend.shadowMap = shadowMap;
@@ -151,6 +159,13 @@ class TestScene: BaseScene3D
         mGround.height = aTexStone2Height.texture;
         mGround.roughness = 0.8f;
         mGround.parallax = ParallaxSimple;
+        
+        auto matSky = createMaterial(skyb);
+        
+        eSky = createEntity3D();
+        eSky.material = matSky;
+        eSky.drawable = aSphere.mesh;
+        eSky.scaling = Vector3f(100.0f, 100.0f, 100.0f);
         
         Entity eBuilding = createEntity3D();
         eBuilding.drawable = aBuilding.mesh;
@@ -203,6 +218,7 @@ class TestScene: BaseScene3D
         eText.position = Vector3f(16.0f, eventManager.windowHeight - 30.0f, 0.0f);
         
         environment.useSkyColors = true;
+        environment.atmosphericFog = true;
         
         initializedPhysics = true;
     }
@@ -259,6 +275,8 @@ class TestScene: BaseScene3D
         if (eventManager.keyPressed[KEY_LEFT]) ry += 30.0f * dt;
         if (eventManager.keyPressed[KEY_RIGHT]) ry -= 30.0f * dt;
         environment.sunRotation = rotationQuaternion(Axis.y, degtorad(ry)) * rotationQuaternion(Axis.x, degtorad(rx));
+        
+        eSky.position = fpview.camera.position;
     }
     
     void updateShadow(double dt)
@@ -276,13 +294,13 @@ class TestScene: BaseScene3D
         
         updateEnvironment(dt);
         updateShadow(dt);
-        
-        //clm.update();
     }
     
     override void onRender()
     {
+        eSky.visible = false;
         shadowMap.render(&rc3d);
+        eSky.visible = true;
         
         // Render 3D objects to fb
         fb.bind();

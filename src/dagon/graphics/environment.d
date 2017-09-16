@@ -19,8 +19,8 @@ class Environment: Owner
     float fogStart = 20.0f;
     float fogEnd = 100.0f;
     
-    Color4f sunZenithColor = Color4f(0.7, 0.7, 0.6, 1.0);
-    Color4f sunHorizonColor = Color4f(0.8, 0.3, 0.0, 1.0);
+    Color4f sunZenithColor = Color4f(1.0, 1.0, 1.0, 1.0);
+    Color4f sunHorizonColor = Color4f(0.9, 0.4, 0.0, 1.0);
     Quaternionf sunRotation;
     
     Color4f skyZenithColor = Color4f(0.223, 0.572, 0.752, 1.0);
@@ -31,7 +31,7 @@ class Environment: Owner
     Color4f skyZenithColorAtNight = Color4f(0.05, 0.0, 0.1, 1.0);
     
     Color4f skyHorizonColorAtMidday = Color4f(0.9, 1.0, 1.0, 1.0);
-    Color4f skyHorizonColorAtSunset = Color4f(1, 0.588, 0.180, 1.0);
+    Color4f skyHorizonColorAtSunset = Color4f(0.5, 0.2, 0.1, 1.0);
     Color4f skyHorizonColorAtNight = Color4f(0.0, 0.0, 0.0, 1.0);
 
     bool useSkyColors = false;

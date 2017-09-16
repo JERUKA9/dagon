@@ -13,8 +13,9 @@ Implemented features:
 * Clustered forward shading
 * Shadows
 * Skeleton GLSL material backend
-* Blinn-Phong material backend
+* Blinn-Phong and Blinn-Phoing clustered material backends
 * Parallax occlusion mapping
+* Sky material backend
 * Freeview
 * First person view
 * RTT, post-processing
