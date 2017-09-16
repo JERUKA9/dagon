@@ -10,7 +10,7 @@ Implemented features:
 * Rendering meshes with VAO/VBO
 * OBJ models loading
 * Plane shape
-* Clustrered forward shading
+* Clustered forward shading
 * Shadows
 * Skeleton GLSL material backend
 * Blinn-Phong material backend

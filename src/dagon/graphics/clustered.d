@@ -90,6 +90,7 @@ class ClusteredLightManager: Owner
     
     Vector2f clustersPosition;
     float sceneSize = 200.0f;
+    float invSceneSize;
     float clusterSize;
     uint domainSize = 100;
     
@@ -102,10 +103,15 @@ class ClusteredLightManager: Owner
     GLuint lightTexture;
     GLuint indexTexture;
     
-    this(View v, Owner o)
+    this(View v, float sceneSize, uint numClusters, Owner o)
     {
         super(o);
         view = v;
+        
+        this.sceneSize = sceneSize;
+        this.domainSize = numClusters;
+        
+        invSceneSize = 1.0f / sceneSize;
         
         clusterSize = sceneSize / cast(float)domainSize;
         clustersPosition = Vector2f(-sceneSize * 0.5f, -sceneSize * 0.5f);
@@ -219,7 +225,7 @@ class ClusteredLightManager: Owner
         glBindTexture(GL_TEXTURE_1D, 0);
     }
 
-    void update(double dt)
+    void update()
     {
         foreach(ref v; clusters)
             v = 0;
@@ -231,10 +237,8 @@ class ClusteredLightManager: Owner
 
         foreach(i, light; lightSources)
         if (i < maxNumLights)
-        {        
-            Vector3f lightPosEye = light.position * view.viewMatrix;
-            
-            lights[cast(uint)i] = lightPosEye;
+        {
+            lights[cast(uint)i] = light.position;
             lights[maxNumLights + cast(uint)i] = light.color;
             lights[maxNumLights * 2 + cast(uint)i] = Vector2f(light.radius, 0, 0);
 

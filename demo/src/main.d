@@ -123,7 +123,7 @@ class TestScene: BaseScene3D
         fxaa = New!PostFilterFXAA(fb, assetManager);
         lens = New!PostFilterLensDistortion(fbAA, assetManager);
         
-        clm = New!ClusteredLightManager(view, assetManager);
+        clm = New!ClusteredLightManager(view, 200.0f, 100, assetManager);
         bpcb = New!BlinnPhongClusteredBackend(clm, assetManager);
         
         shadowMap = New!CascadedShadowMap(1024, this, assetManager);
@@ -143,7 +143,7 @@ class TestScene: BaseScene3D
         mStone.normal = aTexStoneNormal.texture;
         mStone.height = aTexStoneHeight.texture;
         mStone.roughness = 0.2f;
-        mStone.parallax = ParallaxOcclusionMapping;
+        mStone.parallax = ParallaxSimple; //ParallaxOcclusionMapping;
         
         auto mGround = createMaterial(bpcb);
         mGround.diffuse = aTexStone2Diffuse.texture;
@@ -195,7 +195,7 @@ class TestScene: BaseScene3D
         character = New!CharacterController(world, fpview.camera.position, 80.0f, gSphere, assetManager);
         character.createSensor(gSensor, Vector3f(0.0f, -0.75f, 0.0f));
         
-        auto text = New!TextLine(aFont.font, "Press <LMB> to switch mouse look, WASD to move, spacebar to jump, arrow keys to rotate the sun", assetManager);
+        auto text = New!TextLine(aFont.font, "Press <LMB> to switch mouse look, WASD to move, spacebar to jump, <RMB> to create a light, arrow keys to rotate the sun", assetManager);
         text.color = Color4f(1.0f, 1.0f, 1.0f, 0.7f);
         
         auto eText = createEntity2D();
@@ -232,6 +232,7 @@ class TestScene: BaseScene3D
         if (button == MB_RIGHT)
         {
             clm.addLight(fpview.camera.position, lightColors[uniform(0, 9)] * 2.0f, uniform(2.0f, 5.0f));
+            clm.update();
         }
     }
     
@@ -276,7 +277,7 @@ class TestScene: BaseScene3D
         updateEnvironment(dt);
         updateShadow(dt);
         
-        clm.update(dt);
+        //clm.update();
     }
     
     override void onRender()

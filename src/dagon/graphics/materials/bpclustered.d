@@ -98,7 +98,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         uniform float fogStart;
         uniform float fogEnd;
         
-        uniform float sceneSize;
+        uniform float invLightDomainSize;
         uniform usampler2D lightClusterTexture;
         uniform usampler1D lightIndexTexture;
         //uniform float lightIndexTextureWidth;
@@ -252,7 +252,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             }
             
             // Fetch light cluster slice
-            vec2 clusterCoord = (worldPosition.xz + sceneSize * 0.5) / sceneSize;
+            vec2 clusterCoord = worldPosition.xz * invLightDomainSize + 0.5; //(worldPosition.xz + sceneSize * 0.5) / sceneSize;
             uint clusterIndex = texture(lightClusterTexture, clusterCoord).r;
             uint offset = (clusterIndex << 16) >> 16;
             uint size = (clusterIndex >> 16);
@@ -266,6 +266,8 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
                 vec3 lightPos = texelFetch(lightsTexture, ivec2(u, 0), 0).xyz; 
                 vec3 lightColor = texelFetch(lightsTexture, ivec2(u, 1), 0).xyz; 
                 float lightRadius = texelFetch(lightsTexture, ivec2(u, 2), 0).x;
+                
+                lightPos = (viewMatrix * vec4(lightPos, 1.0)).xyz;
                 
                 vec3 positionToLightSource = vec3(lightPos - eyePosition);
                 float distanceToLight = length(positionToLightSource);
@@ -328,7 +330,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
     GLint fogEndLoc;
     GLint fogColorLoc;
     
-    GLint sceneSizeLoc;
+    GLint invLightDomainSizeLoc;
     GLint clusterTextureLoc;
     GLint lightsTextureLoc;
     //GLint locLightTextureWidth;
@@ -377,7 +379,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         fogColorLoc = glGetUniformLocation(shaderProgram, "fogColor");
         
         clusterTextureLoc = glGetUniformLocation(shaderProgram, "lightClusterTexture");
-        sceneSizeLoc = glGetUniformLocation(shaderProgram, "sceneSize");
+        invLightDomainSizeLoc = glGetUniformLocation(shaderProgram, "invLightDomainSize");
         lightsTextureLoc = glGetUniformLocation(shaderProgram, "lightsTexture");
         //locLightTextureWidth = glGetUniformLocationARB(shaderProg, "lightTextureWidth");
         indexTextureLoc = glGetUniformLocation(shaderProgram, "lightIndexTexture");
@@ -527,19 +529,17 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         glActiveTexture(GL_TEXTURE6);
         lightManager.bindClusterTexture();
         glUniform1i(clusterTextureLoc, 6);
-        glUniform1f(sceneSizeLoc, lightManager.sceneSize);
+        glUniform1f(invLightDomainSizeLoc, lightManager.invSceneSize);
         
         // Texture 7 - light data
         glActiveTexture(GL_TEXTURE7);
         lightManager.bindLightTexture();
         glUniform1i(lightsTextureLoc, 7);
-        //glUniform1f(lightTextureWidthLoc, lightManager.maxNumLights);
         
         // Texture 8 - light indices per cluster
         glActiveTexture(GL_TEXTURE8);
         lightManager.bindIndexTexture();
-        glUniform1i(indexTextureLoc, 8);   
-        //glUniform1f(indexTextureWidthLoc, lightManager.maxNumIndices);
+        glUniform1i(indexTextureLoc, 8);
         
         glActiveTexture(GL_TEXTURE0);
     }
