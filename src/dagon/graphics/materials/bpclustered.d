@@ -101,9 +101,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         uniform float invLightDomainSize;
         uniform usampler2D lightClusterTexture;
         uniform usampler1D lightIndexTexture;
-        //uniform float lightIndexTextureWidth;
         uniform sampler2D lightsTexture;
-        //uniform float lightTextureWidth;
         
         in vec3 eyePosition;
         in vec3 eyeNormal;
@@ -252,7 +250,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             }
             
             // Fetch light cluster slice
-            vec2 clusterCoord = worldPosition.xz * invLightDomainSize + 0.5; //(worldPosition.xz + sceneSize * 0.5) / sceneSize;
+            vec2 clusterCoord = worldPosition.xz * invLightDomainSize + 0.5;
             uint clusterIndex = texture(lightClusterTexture, clusterCoord).r;
             uint offset = (clusterIndex << 16) >> 16;
             uint size = (clusterIndex >> 16);
@@ -265,20 +263,31 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
                 uint u = texelFetch(lightIndexTexture, int(offset + i), 0).r;
                 vec3 lightPos = texelFetch(lightsTexture, ivec2(u, 0), 0).xyz; 
                 vec3 lightColor = texelFetch(lightsTexture, ivec2(u, 1), 0).xyz; 
-                float lightRadius = texelFetch(lightsTexture, ivec2(u, 2), 0).x;
+                vec3 lightProps = texelFetch(lightsTexture, ivec2(u, 2), 0).xyz;
+                float lightRadius = lightProps.x;
+                float lightAreaRadius = lightProps.y;
+                float lightEnergy = lightProps.z;
                 
                 lightPos = (viewMatrix * vec4(lightPos, 1.0)).xyz;
                 
                 vec3 positionToLightSource = vec3(lightPos - eyePosition);
                 float distanceToLight = length(positionToLightSource);
                 vec3 directionToLight = normalize(positionToLightSource);
-
-                float attenuation = clamp(1.0 - (distanceToLight / lightRadius), 0.0, 1.0);
                 
-                pointDiffSum += lightColor * clamp(dot(N, directionToLight), 0.0, 1.0) * attenuation;
+                vec3 r = reflect(E, N);
+	            vec3 L = positionToLightSource;
+	            vec3 centerToRay = dot(L, r) * r - L;
+	            vec3 closestPoint = L + centerToRay * clamp(lightAreaRadius / length(centerToRay), 0.0, 1.0);	
+	            directionToLight = normalize(closestPoint);
+
+                float attenuation = clamp(1.0 - (distanceToLight / lightRadius), 0.0, 1.0) * lightEnergy;
                 
                 float NH = dot(N, normalize(directionToLight + E));
-                pointSpecSum += lightColor * pow(max(NH, 0.0), shininess) * gloss * attenuation;
+                float spec = pow(max(NH, 0.0), shininess) * gloss;
+                float diff = clamp(dot(N, directionToLight), 0.0, 1.0) - spec;
+                
+                pointDiffSum += lightColor * diff * attenuation;
+                pointSpecSum += lightColor * spec * attenuation;
             }
             
             // Fog
@@ -381,9 +390,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         clusterTextureLoc = glGetUniformLocation(shaderProgram, "lightClusterTexture");
         invLightDomainSizeLoc = glGetUniformLocation(shaderProgram, "invLightDomainSize");
         lightsTextureLoc = glGetUniformLocation(shaderProgram, "lightsTexture");
-        //locLightTextureWidth = glGetUniformLocationARB(shaderProg, "lightTextureWidth");
         indexTextureLoc = glGetUniformLocation(shaderProgram, "lightIndexTexture");
-        //locIndexTextureWidth = glGetUniformLocationARB(shaderProg, "lightIndexTextureWidth");
     }
     
     Texture makeOnePixelTexture(Material mat, Color4f color)
@@ -408,8 +415,6 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             parallaxMethod = ParallaxOcclusionMapping;
         if (parallaxMethod < 0)
             parallaxMethod = 0;
-        
-        //glEnable(GL_CULL_FACE);
         
         glUseProgram(shaderProgram);
         

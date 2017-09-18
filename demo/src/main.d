@@ -58,6 +58,7 @@ class TestScene: BaseScene3D
     
     ClusteredLightManager clm;
     BlinnPhongClusteredBackend bpcb;
+    ShadelessBackend shadeless;
     SkyBackend skyb;
     CascadedShadowMap shadowMap;
     float rx = -45.0f;
@@ -132,6 +133,7 @@ class TestScene: BaseScene3D
         
         clm = New!ClusteredLightManager(view, 200.0f, 100, assetManager);
         bpcb = New!BlinnPhongClusteredBackend(clm, assetManager);
+        shadeless = New!ShadelessBackend(assetManager);
         skyb = New!SkyBackend(assetManager);
         
         shadowMap = New!CascadedShadowMap(1024, this, assetManager);
@@ -150,14 +152,14 @@ class TestScene: BaseScene3D
         mStone.diffuse = aTexStoneDiffuse.texture;
         mStone.normal = aTexStoneNormal.texture;
         mStone.height = aTexStoneHeight.texture;
-        mStone.roughness = 0.2f;
+        mStone.roughness = 0.1f;
         mStone.parallax = ParallaxSimple; //ParallaxOcclusionMapping;
         
         auto mGround = createMaterial(bpcb);
         mGround.diffuse = aTexStone2Diffuse.texture;
         mGround.normal = aTexStone2Normal.texture;
         mGround.height = aTexStone2Height.texture;
-        mGround.roughness = 0.8f;
+        mGround.roughness = 0.1f;
         mGround.parallax = ParallaxSimple;
         
         auto matSky = createMaterial(skyb);
@@ -166,6 +168,7 @@ class TestScene: BaseScene3D
         eSky.material = matSky;
         eSky.drawable = aSphere.mesh;
         eSky.scaling = Vector3f(100.0f, 100.0f, 100.0f);
+        eSky.castShadow = false;
         
         Entity eBuilding = createEntity3D();
         eBuilding.drawable = aBuilding.mesh;
@@ -247,7 +250,21 @@ class TestScene: BaseScene3D
         
         if (button == MB_RIGHT)
         {
-            clm.addLight(fpview.camera.position, lightColors[uniform(0, 9)] * 2.0f, uniform(2.0f, 5.0f));
+            float radius = uniform(0.1f, 0.5f);
+            Color4f color = lightColors[uniform(0, 9)];
+            Vector3f pos = fpview.camera.position + Vector3f(0, -1.0 + radius, 0);
+            
+            auto mLight = createMaterial(shadeless);
+            mLight.diffuse = color;
+        
+            auto eLight = createEntity3D();
+            eLight.material = mLight;
+            eLight.drawable = aSphere.mesh;
+            eLight.scaling = Vector3f(-radius, -radius, -radius);
+            eLight.position = pos;
+            eLight.castShadow = false;
+        
+            clm.addLight(pos, color, 6.0f, radius);
             clm.update();
         }
     }
@@ -298,9 +315,7 @@ class TestScene: BaseScene3D
     
     override void onRender()
     {
-        eSky.visible = false;
         shadowMap.render(&rc3d);
-        eSky.visible = true;
         
         // Render 3D objects to fb
         fb.bind();

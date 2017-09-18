@@ -64,7 +64,9 @@ struct LightSource
 {
     Vector3f position;
     Vector3f color;
-    float radius;
+    float radius; // max light attenuation radius
+    float areaRadius; // light's own radius
+    float energy; // 1.0 - full brightness, 0.0 - light is turned off
 }
 
 enum uint maxLightsPerNode = 32;
@@ -193,9 +195,9 @@ class ClusteredLightManager: Owner
         Delete(clusterData);
     }
     
-    void addLight(Vector3f position, Color4f color, float radius)
+    void addLight(Vector3f position, Color4f color, float radius, float areaRadius = 0.0f)
     {
-        lightSources.append(LightSource(position, color.rgb, radius));
+        lightSources.append(LightSource(position, color.rgb, radius, areaRadius, 1.0f));
     }
     
     void bindClusterTexture()
@@ -240,7 +242,7 @@ class ClusteredLightManager: Owner
         {
             lights[cast(uint)i] = light.position;
             lights[maxNumLights + cast(uint)i] = light.color;
-            lights[maxNumLights * 2 + cast(uint)i] = Vector2f(light.radius, 0, 0);
+            lights[maxNumLights * 2 + cast(uint)i] = Vector3f(light.radius, light.areaRadius, light.energy);
 
             Vector2f lightPosXZ = Vector2f(light.position.x, light.position.z);
             Circle lightCircle = Circle(lightPosXZ, light.radius);

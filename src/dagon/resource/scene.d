@@ -18,7 +18,12 @@ import dagon.resource.asset;
 import dagon.resource.textasset;
 import dagon.resource.textureasset;
 import dagon.resource.fontasset;
+import dagon.graphics.environment;
 import dagon.graphics.rc;
+import dagon.graphics.view;
+import dagon.graphics.materials.generic;
+import dagon.graphics.materials.bp;
+import dagon.logics.entity;
 
 class Scene: EventListener
 {
@@ -339,3 +344,131 @@ class SceneApplication: Application
     }
 }
 
+class BaseScene3D: Scene
+{
+    Environment environment;
+    BlinnPhongBackend defaultMaterialBackend;
+
+    RenderingContext rc3d; 
+    RenderingContext rc2d; 
+    View view;
+
+    DynamicArray!Entity entities3D;
+    DynamicArray!Entity entities2D;
+
+    double timer;
+    double fixedTimeStep = 1.0 / 60.0;
+
+    this(SceneManager smngr)
+    {
+        super(smngr);
+    }
+
+    Entity createEntity2D()
+    {
+        Entity e = New!Entity(eventManager, assetManager);
+        entities2D.append(e);
+        return e;
+    }
+    
+    Entity createEntity3D()
+    {
+        Entity e = New!Entity(eventManager, assetManager);
+        entities3D.append(e);
+        return e;
+    }
+    
+    GenericMaterial createMaterial(GenericMaterialBackend backend = null)
+    {
+        if (backend is null)
+            backend = defaultMaterialBackend;
+        return New!GenericMaterial(backend, assetManager);
+    }
+
+    override void onAllocate()
+    {    
+        environment = New!Environment(assetManager);
+        defaultMaterialBackend = New!BlinnPhongBackend(assetManager);
+    }
+    
+    override void onRelease()
+    {
+        entities3D.free();
+        entities2D.free();
+    }
+
+    override void onStart()
+    {
+        rc3d.init(eventManager, environment);
+        rc3d.projectionMatrix = perspectiveMatrix(60.0f, eventManager.aspectRatio, 0.1f, 500.0f);
+
+        rc2d.init(eventManager, environment);
+        rc2d.projectionMatrix = orthoMatrix(0.0f, eventManager.windowWidth, 0.0f, eventManager.windowHeight, 0.0f, 100.0f);
+
+        timer = 0.0;
+    }
+
+    void onLogicsUpdate(double dt)
+    {
+    }
+
+    override void onUpdate(double dt)
+    {
+        foreach(e; entities3D)
+            e.processEvents();
+
+        foreach(e; entities2D)
+            e.processEvents();
+
+        timer += dt;
+        if (timer >= fixedTimeStep)
+        {
+            timer -= fixedTimeStep;
+
+            if (view)
+            {
+                view.update(fixedTimeStep);
+                view.prepareRC(&rc3d);
+            }
+
+            onLogicsUpdate(fixedTimeStep);
+            environment.update(dt);
+
+            foreach(e; entities3D)
+                e.update(fixedTimeStep);
+
+            foreach(e; entities2D)
+                e.update(fixedTimeStep);
+        }
+    }
+
+    void renderEntities3D(RenderingContext* rc)
+    {
+        glEnable(GL_DEPTH_TEST);
+        foreach(e; entities3D)
+            e.render(rc);
+    }
+
+    void renderEntities2D(RenderingContext* rc)
+    {
+        glDisable(GL_DEPTH_TEST);
+        foreach(e; entities2D)
+            e.render(rc);
+    }
+    
+    void prepareRender()
+    {
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(0, 0, eventManager.windowWidth, eventManager.windowHeight);
+        glViewport(0, 0, eventManager.windowWidth, eventManager.windowHeight);
+        glClearColor(environment.backgroundColor.r, environment.backgroundColor.g, environment.backgroundColor.b, environment.backgroundColor.a);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+
+    override void onRender()
+    {     
+        prepareRender();
+        renderEntities3D(&rc3d);
+        renderEntities2D(&rc2d);
+    } 
+}

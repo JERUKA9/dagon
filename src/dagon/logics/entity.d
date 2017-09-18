@@ -47,6 +47,7 @@ class Entity: Owner
     RenderingContext rcLocal;
 
     bool visible = true;
+    bool castShadow = true;
 
     this(EventManager emngr, Owner owner)
     {

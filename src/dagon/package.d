@@ -49,6 +49,7 @@ public
     import dagon.graphics.materials.generic;
     import dagon.graphics.materials.bp;
     import dagon.graphics.materials.bpclustered;
+    import dagon.graphics.materials.shadeless;
     import dagon.graphics.materials.sky;
     
     import dagon.graphics.filters.fxaa;
@@ -57,6 +58,4 @@ public
     import dagon.ui.font;
     import dagon.ui.ftfont;
     import dagon.ui.textline;
-
-    import dagon.templates.basescene;
 }

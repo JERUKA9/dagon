@@ -11,6 +11,7 @@ Implemented features:
 * OBJ models loading
 * Plane shape
 * Clustered forward shading
+* Spherical area lights
 * Shadows
 * Skeleton GLSL material backend
 * Blinn-Phong and Blinn-Phoing clustered material backends
@@ -22,3 +23,4 @@ Implemented features:
 * TTF fonts and text rendering
 
 [![Screenshot1](/screenshots/imrod-thumb.jpg)](/screenshots/imrod.jpg)
+[![Screenshot2](/screenshots/area-thumb.jpg)](/screenshots/area.jpg)

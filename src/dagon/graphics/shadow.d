@@ -26,8 +26,7 @@ import dagon.graphics.rc;
 import dagon.graphics.environment;
 import dagon.graphics.material;
 import dagon.graphics.materials.generic;
-
-import dagon.templates.basescene;
+import dagon.resource.scene;
 
 class ShadowArea: Owner, Drawable
 {
@@ -299,14 +298,14 @@ class CascadedShadowMap: Owner, Drawable
     }
     
     void render(RenderingContext* rc)
-    {
-        //glEnable(GL_DEPTH_TEST);
-        
+    {        
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer1);
 
         glViewport(0, 0, size, size);
         glScissor(0, 0, size, size);
         glClear(GL_DEPTH_BUFFER_BIT);
+        
+        glEnable(GL_DEPTH_TEST);
 
         auto rcLocal = *rc;
         rcLocal.projectionMatrix = area1.projectionMatrix;
@@ -319,7 +318,9 @@ class CascadedShadowMap: Owner, Drawable
         glPolygonOffset(3.0, 0.0);
         glDisable(GL_CULL_FACE);
 
-        scene.renderEntities3D(&rcLocal);
+        foreach(e; scene.entities3D)
+            if (e.castShadow)
+                e.render(&rcLocal);
          
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer2);
 
@@ -331,8 +332,10 @@ class CascadedShadowMap: Owner, Drawable
         rcLocal.viewMatrix = area2.viewMatrix;
         rcLocal.invViewMatrix = area2.invViewMatrix;
         rcLocal.normalMatrix = rcLocal.invViewMatrix.transposed;
-        
-        scene.renderEntities3D(&rcLocal);
+
+        foreach(e; scene.entities3D)
+            if (e.castShadow)
+                e.render(&rcLocal);
         
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer3);
 
@@ -345,13 +348,13 @@ class CascadedShadowMap: Owner, Drawable
         rcLocal.invViewMatrix = area3.invViewMatrix;
         rcLocal.normalMatrix = rcLocal.invViewMatrix.transposed;
 
-        scene.renderEntities3D(&rcLocal);
+        foreach(e; scene.entities3D)
+            if (e.castShadow)
+                e.render(&rcLocal);
         
         glEnable(GL_CULL_FACE);
         glPolygonOffset(0.0, 0.0);
         
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-        //glDisable(GL_DEPTH_TEST);
     }
 }
