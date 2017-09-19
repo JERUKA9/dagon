@@ -70,6 +70,11 @@ class TestScene: BaseScene3D
     OBJAsset aImrod;
     OBJAsset aSphere;
     
+    IQMAsset iqm;
+    
+    Entity mrfixit;
+    Actor actor;
+    
     ClusteredLightManager clm;
     BlinnPhongClusteredBackend bpcb;
     ShadelessBackend shadeless;
@@ -126,6 +131,10 @@ class TestScene: BaseScene3D
         
         aSphere = New!OBJAsset(assetManager);
         addAsset(aSphere, "data/obj/sphere.obj");
+        
+        assetManager.mountDirectory("data/iqm");
+        iqm = New!IQMAsset(assetManager);
+        addAsset(iqm, "data/iqm/mrfixit.iqm");
     }
 
     override void onAllocate()
@@ -150,10 +159,12 @@ class TestScene: BaseScene3D
         defaultMaterialBackend.shadowMap = shadowMap;
         bpcb.shadowMap = shadowMap;
         
+        auto matDefault = createMaterial(bpcb);
+        
         auto matImrod = createMaterial(bpcb);
         matImrod.diffuse = aTexImrodDiffuse.texture;
         matImrod.normal = aTexImrodNormal.texture;
-        
+
         auto mStone = createMaterial(bpcb);
         mStone.diffuse = aTexStoneDiffuse.texture;
         mStone.normal = aTexStoneNormal.texture;
@@ -187,6 +198,16 @@ class TestScene: BaseScene3D
         eImrod.position.y = 0.8f;
         eImrod.scaling = Vector3f(0.5, 0.5, 0.5);
         
+        actor = New!Actor(iqm.model, assetManager);
+        mrfixit = createEntity3D();
+        mrfixit.drawable = actor;
+        mrfixit.material = matDefault;
+        mrfixit.position.x = 15.0f;
+        mrfixit.position.y = 0.8f;
+        mrfixit.rotation = rotationQuaternion(Axis.y, degtorad(-90.0f));
+        mrfixit.scaling = Vector3f(0.25, 0.25, 0.25);
+        mrfixit.defaultController.swapZY = true;
+        
         world = New!PhysicsWorld();
 
         bvh = meshBVH(aBuilding.mesh);
@@ -218,6 +239,12 @@ class TestScene: BaseScene3D
         environment.atmosphericFog = true;
         
         initializedPhysics = true;
+    }
+    
+    override void onStart()
+    {
+        super.onStart();
+        actor.play();
     }
     
     Color4f[9] lightColors = [

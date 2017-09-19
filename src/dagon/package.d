@@ -23,6 +23,7 @@ public
     import dagon.resource.textasset;
     import dagon.resource.textureasset;
     import dagon.resource.obj;
+    import dagon.resource.iqm;
     import dagon.resource.fontasset;
 
     import dagon.logics.entity;
@@ -39,6 +40,7 @@ public
     import dagon.graphics.material;
     import dagon.graphics.environment;
     import dagon.graphics.mesh;
+    import dagon.graphics.animmodel;
     import dagon.graphics.view;
     import dagon.graphics.shadow;
     import dagon.graphics.clustered;

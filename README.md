@@ -6,9 +6,10 @@ This branch is an attempt to port Dagon to modern OpenGL. Current target is Open
 
 Implemented features:
 * Core infrastructure, application and scenes creation
-* Loading textures
-* Rendering meshes with VAO/VBO
-* OBJ models loading
+* Textures, materials
+* Static meshes
+* Animated models
+* OBJ and IQM models loading
 * Plane shape
 * Clustered forward shading
 * Spherical area lights
