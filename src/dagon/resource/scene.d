@@ -326,9 +326,9 @@ class SceneApplication: Application
 {
     SceneManager sceneManager;
 
-    this(uint w, uint h, string windowTitle, string[] args)
+    this(uint w, uint h, bool fullscreen, string windowTitle, string[] args)
     {
-        super(w, h, windowTitle, args);
+        super(w, h, fullscreen, windowTitle, args);
 
         sceneManager = New!SceneManager(eventManager, this);
     }

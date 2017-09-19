@@ -33,7 +33,7 @@ class Application: EventListener
     SDL_GLContext glcontext;
     string libdir;
     
-    this(uint w, uint h, string windowTitle, string[] args)
+    this(uint w, uint h, bool fullscreen, string windowTitle, string[] args)
     {
         try
         { 
@@ -169,6 +169,9 @@ class Application: EventListener
         }
         
         SDL_GL_MakeCurrent(window, glcontext);
+        
+        if (fullscreen)
+            SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
             
         EventManager eventManager = new EventManager(window, width, height);
         super(eventManager, null);

@@ -234,8 +234,8 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             float s1, s2, s3;
             if (useShadows)
             {
-                s1 = pcf(shadowTextureArray, 0.0, shadowCoord1, 3.0, 0.0);
-                s2 = pcf(shadowTextureArray, 1.0, shadowCoord2, 2.0, 0.0);
+                s1 = pcf(shadowTextureArray, 0.0, shadowCoord1, 2.0, 0.0);
+                s2 = pcf(shadowTextureArray, 1.0, shadowCoord2, 1.0, 0.0);
                 s3 = pcf(shadowTextureArray, 2.0, shadowCoord3, 1.0, 0.0);
                 float w1 = weight(shadowCoord1);
                 float w2 = weight(shadowCoord2);

@@ -342,6 +342,8 @@ class TestScene: BaseScene3D
     {
         shadowMap.render(&rc3d);
         
+        //super.onRender();
+        
         // Render 3D objects to fb
         fb.bind();
         prepareRender();        
@@ -388,7 +390,7 @@ class MyApplication: SceneApplication
 {
     this(string[] args)
     {
-        super(1280, 720, "Dagon (OpenGL 3.3)", args);
+        super(1280, 720, false, "Dagon (OpenGL 3.3)", args);
 
         TestScene test = New!TestScene(sceneManager);
         sceneManager.addScene(test, "TestScene");
