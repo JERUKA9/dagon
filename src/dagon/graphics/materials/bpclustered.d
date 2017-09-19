@@ -270,14 +270,16 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
                 
                 lightPos = (viewMatrix * vec4(lightPos, 1.0)).xyz;
                 
-                vec3 positionToLightSource = vec3(lightPos - eyePosition);
+                vec3 lightPos2 = (viewMatrix * vec4(lightPos + vec3(0.0, 0.0, 1.0), 1.0)).xyz;
+                
+                vec3 positionToLightSource = lightPos - eyePosition;
                 float distanceToLight = length(positionToLightSource);
                 vec3 directionToLight = normalize(positionToLightSource);
                 
                 vec3 r = reflect(E, N);
-	            vec3 L = positionToLightSource;
-	            vec3 centerToRay = dot(L, r) * r - L;
-	            vec3 closestPoint = L + centerToRay * clamp(lightAreaRadius / length(centerToRay), 0.0, 1.0);	
+                
+	            vec3 centerToRay = dot(positionToLightSource, r) * r - positionToLightSource;
+	            vec3 closestPoint = positionToLightSource + centerToRay * clamp(lightAreaRadius / length(centerToRay), 0.0, 1.0);	
 	            directionToLight = normalize(closestPoint);
 
                 float attenuation = clamp(1.0 - (distanceToLight / lightRadius), 0.0, 1.0) * lightEnergy;

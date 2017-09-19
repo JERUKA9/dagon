@@ -29,6 +29,8 @@ module derelict.opengl.deprecatedConstants;
 
 private import derelict.opengl.types;
 
+version(None):
+
 enum : GLenum {
     // 1.0 & 1.1
     GL_2_BYTES                              = 0x1407,

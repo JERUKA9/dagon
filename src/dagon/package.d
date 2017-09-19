@@ -28,7 +28,6 @@ public
     import dagon.logics.entity;
     import dagon.logics.controller;
     import dagon.logics.behaviour;
-    import dagon.logics.stdbehaviour;
 
     import dagon.graphics.rc;
     import dagon.graphics.tbcamera;

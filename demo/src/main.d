@@ -34,6 +34,23 @@ BVHTree!Triangle meshBVH(Mesh mesh)
     return bvh;
 }
 
+class LightBehaviour: Behaviour
+{
+    LightSource* light;
+
+    this(Entity e, LightSource* light)
+    {
+        super(e);
+        
+        this.light = light;
+    }
+
+    override void update(double dt)
+    {
+        light.position = entity.position;
+    }
+}
+
 class TestScene: BaseScene3D
 {
     FontAsset aFont;
@@ -49,11 +66,8 @@ class TestScene: BaseScene3D
     TextureAsset aTexStone2Normal;
     TextureAsset aTexStone2Height;
     
-    TextureAsset aTexCrateDiffuse;
-    
     OBJAsset aBuilding;
     OBJAsset aImrod;
-    OBJAsset aCrate;
     OBJAsset aSphere;
     
     ClusteredLightManager clm;
@@ -71,7 +85,8 @@ class TestScene: BaseScene3D
     PhysicsWorld world;
     RigidBody bGround;
     Geometry gGround;
-    Geometry gCrate;
+    float lightBallRadius = 0.5f;
+    Geometry gLightBall;
     GeomEllipsoid gSphere;
     GeomBox gSensor;
     CharacterController character;
@@ -103,16 +118,11 @@ class TestScene: BaseScene3D
         aTexStone2Normal = addTextureAsset("data/textures/stone2-normal.png");
         aTexStone2Height = addTextureAsset("data/textures/stone2-height.png");
         
-        aTexCrateDiffuse = addTextureAsset("data/textures/crate.png");
-        
         aBuilding = New!OBJAsset(assetManager);
         addAsset(aBuilding, "data/obj/level.obj");
         
         aImrod = New!OBJAsset(assetManager);
         addAsset(aImrod, "data/obj/imrod.obj");
-        
-        aCrate = New!OBJAsset(assetManager);
-        addAsset(aCrate, "data/obj/crate.obj");
         
         aSphere = New!OBJAsset(assetManager);
         addAsset(aSphere, "data/obj/sphere.obj");
@@ -143,10 +153,6 @@ class TestScene: BaseScene3D
         auto matImrod = createMaterial(bpcb);
         matImrod.diffuse = aTexImrodDiffuse.texture;
         matImrod.normal = aTexImrodNormal.texture;
-        
-        auto mCrate = createMaterial(bpcb);
-        mCrate.diffuse = aTexCrateDiffuse.texture;
-        mCrate.roughness = 0.9f;
         
         auto mStone = createMaterial(bpcb);
         mStone.diffuse = aTexStoneDiffuse.texture;
@@ -194,20 +200,8 @@ class TestScene: BaseScene3D
         eGround.material = mGround;
         eGround.position.y = 0.8f;
 
-        gCrate = New!GeomBox(Vector3f(1.0f, 1.0f, 1.0f));
-
-        foreach(i; 0..5)
-        {
-            auto eCrate = createEntity3D();
-            eCrate.drawable = aCrate.mesh;
-            eCrate.material = mCrate;
-            eCrate.position = Vector3f(i * 0.1f, 3.0f + 3.0f * cast(float)i, -5.0f);
-            auto bCrate = world.addDynamicBody(Vector3f(0, 0, 0), 0.0f);
-            RigidBodyController rbc = New!RigidBodyController(eCrate, bCrate);
-            eCrate.controller = rbc;
-            world.addShapeComponent(bCrate, gCrate, Vector3f(0.0f, 0.0f, 0.0f), 10.0f);
-        }
-
+        gLightBall = New!GeomSphere(lightBallRadius);
+        
         gSphere = New!GeomEllipsoid(Vector3f(0.9f, 1.0f, 0.9f));
         gSensor = New!GeomBox(Vector3f(0.5f, 0.5f, 0.5f));
         character = New!CharacterController(world, fpview.camera.position, 80.0f, gSphere, assetManager);
@@ -250,22 +244,24 @@ class TestScene: BaseScene3D
         
         if (button == MB_RIGHT)
         {
-            float radius = uniform(0.1f, 0.5f);
+            Vector3f pos = fpview.camera.position + fpview.camera.characterMatrix.forward * -2.0f;
             Color4f color = lightColors[uniform(0, 9)];
-            Vector3f pos = fpview.camera.position + Vector3f(0, -1.0 + radius, 0);
+            auto mLightBall = createMaterial(shadeless);
+            mLightBall.diffuse = color;
             
-            auto mLight = createMaterial(shadeless);
-            mLight.diffuse = color;
-        
-            auto eLight = createEntity3D();
-            eLight.material = mLight;
-            eLight.drawable = aSphere.mesh;
-            eLight.scaling = Vector3f(-radius, -radius, -radius);
-            eLight.position = pos;
-            eLight.castShadow = false;
-        
-            clm.addLight(pos, color, 6.0f, radius);
-            clm.update();
+            auto eLightBall = createEntity3D();
+            eLightBall.drawable = aSphere.mesh;
+            eLightBall.scaling = Vector3f(-lightBallRadius, -lightBallRadius, -lightBallRadius);
+            eLightBall.castShadow = false;
+            eLightBall.material = mLightBall;
+            eLightBall.position = pos;
+            auto bLightBall = world.addDynamicBody(Vector3f(0, 0, 0), 0.0f);
+            RigidBodyController rbc = New!RigidBodyController(eLightBall, bLightBall);
+            eLightBall.controller = rbc;
+            world.addShapeComponent(bLightBall, gLightBall, Vector3f(0.0f, 0.0f, 0.0f), 10.0f);
+            
+            auto light = clm.addLight(pos, color, 3.0f, lightBallRadius);
+            LightBehaviour lc = New!LightBehaviour(eLightBall, light);
         }
     }
     
@@ -311,6 +307,8 @@ class TestScene: BaseScene3D
         
         updateEnvironment(dt);
         updateShadow(dt);
+        
+        clm.update();
     }
     
     override void onRender()
@@ -344,7 +342,7 @@ class TestScene: BaseScene3D
         {
             Delete(world);
             Delete(gGround);
-            Delete(gCrate);
+            Delete(gLightBall);
             Delete(gSphere);
             Delete(gSensor);
             bvh.free();

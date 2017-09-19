@@ -195,9 +195,10 @@ class ClusteredLightManager: Owner
         Delete(clusterData);
     }
     
-    void addLight(Vector3f position, Color4f color, float radius, float areaRadius = 0.0f)
+    LightSource* addLight(Vector3f position, Color4f color, float radius, float areaRadius = 0.0f)
     {
         lightSources.append(LightSource(position, color.rgb, radius, areaRadius, 1.0f));
+        return &lightSources.data[$-1];
     }
     
     void bindClusterTexture()

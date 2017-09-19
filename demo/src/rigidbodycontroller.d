@@ -19,7 +19,7 @@ class RigidBodyController: EntityController
     {
         entity.position = rbody.position;
         entity.rotation = rbody.orientation; 
-        entity.transformation = rbody.transformation;
+        entity.transformation = rbody.transformation * scaleMatrix(entity.scaling);
         entity.invTransformation = entity.transformation.inverse;
     }
 }
