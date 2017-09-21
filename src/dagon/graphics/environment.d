@@ -16,8 +16,8 @@ class Environment: Owner
     // TODO: ambient map (cubemap and equirectangular map)
 
     Color4f fogColor = Color4f(0.1f, 0.1f, 0.1f, 1.0f);
-    float fogStart = 20.0f;
-    float fogEnd = 100.0f;
+    float fogStart = 50.0f;
+    float fogEnd = 200.0f;
     
     Color4f sunZenithColor = Color4f(1.0, 1.0, 1.0, 1.0);
     Color4f sunHorizonColor = Color4f(0.9, 0.4, 0.0, 1.0);
@@ -51,11 +51,14 @@ class Environment: Owner
             skyZenithColor = lerpColorsBySunAngle(skyZenithColorAtMidday, skyZenithColorAtSunset, skyZenithColorAtNight);
             skyHorizonColor = lerpColorsBySunAngle(skyHorizonColorAtMidday, skyHorizonColorAtSunset, skyHorizonColorAtNight);
             backgroundColor = skyZenithColor;
+            
+            ambientConstant = Color4f(0.0f, 0.05f, 0.05f) + skyZenithColor * 0.3f;
+            
             if (atmosphericFog)
-                fogColor = skyHorizonColor;
+                fogColor = (skyZenithColor + skyHorizonColor) * 0.5f;
             else
                 fogColor = backgroundColor;
-            ambientConstant = Color4f(0.0f, 0.05f, 0.05f) + skyZenithColor * 0.3f;
+            
         }
         else
         {

@@ -330,15 +330,6 @@ class BlinnPhongBackend: GLSLMaterialBackend
         fogColorLoc = glGetUniformLocation(shaderProgram, "fogColor");
     }
     
-    Texture makeOnePixelTexture(Material mat, Color4f color)
-    {
-        auto img = New!UnmanagedImageRGBA8(8, 8);
-        img.fillColor(color);
-        auto tex = New!Texture(img, mat, false);
-        Delete(img);
-        return tex;
-    }
-    
     override void bind(GenericMaterial mat, RenderingContext* rc)
     {
         auto idiffuse = "diffuse" in mat.inputs;

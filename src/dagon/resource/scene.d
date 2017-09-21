@@ -400,7 +400,7 @@ class BaseScene3D: Scene
     override void onStart()
     {
         rc3d.init(eventManager, environment);
-        rc3d.projectionMatrix = perspectiveMatrix(60.0f, eventManager.aspectRatio, 0.1f, 500.0f);
+        rc3d.projectionMatrix = perspectiveMatrix(60.0f, eventManager.aspectRatio, 0.1f, 1000.0f);
 
         rc2d.init(eventManager, environment);
         rc2d.projectionMatrix = orthoMatrix(0.0f, eventManager.windowWidth, 0.0f, eventManager.windowHeight, 0.0f, 100.0f);
@@ -430,15 +430,18 @@ class BaseScene3D: Scene
                 view.update(fixedTimeStep);
                 view.prepareRC(&rc3d);
             }
-
-            onLogicsUpdate(fixedTimeStep);
-            environment.update(dt);
+            
+            rc3d.time += fixedTimeStep;
+            rc2d.time += fixedTimeStep;
 
             foreach(e; entities3D)
                 e.update(fixedTimeStep);
 
             foreach(e; entities2D)
                 e.update(fixedTimeStep);
+                
+            onLogicsUpdate(fixedTimeStep);
+            environment.update(dt);
         }
     }
 

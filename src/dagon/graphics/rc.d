@@ -30,6 +30,8 @@ struct RenderingContext
     Environment environment;
     Material overrideMaterial;
     
+    float time;
+    
     void init(EventManager emngr, Environment env)
     {
         position = Vector3f(0.0f, 0.0f, 0.0f);
@@ -46,6 +48,7 @@ struct RenderingContext
         eventManager = emngr;
         environment = env;
         overrideMaterial = null;
+        time = 0.0f;
     }
 
     void apply()

@@ -18,6 +18,7 @@ Implemented features:
 * Blinn-Phong and Blinn-Phoing clustered material backends
 * Parallax occlusion mapping
 * Sky material backend
+* Clouds material backend
 * Freeview
 * First person view
 * RTT, post-processing
@@ -25,3 +26,4 @@ Implemented features:
 
 [![Screenshot1](/screenshots/imrod-thumb.jpg)](/screenshots/imrod.jpg)
 [![Screenshot2](/screenshots/area-thumb.jpg)](/screenshots/area.jpg)
+[![Screenshot3](/screenshots/clouds-thumb.jpg)](/screenshots/clouds.jpg)

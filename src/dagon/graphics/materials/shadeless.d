@@ -23,12 +23,16 @@ class ShadelessBackend: GLSLMaterialBackend
         #version 330 core
         
         layout (location = 0) in vec3 va_Vertex;
+        layout (location = 2) in vec2 va_Texcoord;
+        
+        out vec2 texCoord;
         
         uniform mat4 modelViewMatrix;
         uniform mat4 projectionMatrix;
     
         void main()
-        {            
+        {
+            texCoord = va_Texcoord;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(va_Vertex, 1.0);
         }
     };
@@ -36,13 +40,15 @@ class ShadelessBackend: GLSLMaterialBackend
     private string fsText = q{
         #version 330 core
         
-        uniform vec4 color;
+        uniform sampler2D diffuseTexture;
+        
+        in vec2 texCoord;
         
         out vec4 frag_color;
 
         void main()
         {
-            frag_color = color;
+            frag_color = texture(diffuseTexture, texCoord);
         }
     };
     
@@ -52,7 +58,7 @@ class ShadelessBackend: GLSLMaterialBackend
     GLint modelViewMatrixLoc;
     GLint projectionMatrixLoc;
     
-    GLint locColor;
+    GLint diffuseTextureLoc;
     
     this(Owner o)
     {
@@ -61,12 +67,15 @@ class ShadelessBackend: GLSLMaterialBackend
         modelViewMatrixLoc = glGetUniformLocation(shaderProgram, "modelViewMatrix");
         projectionMatrixLoc = glGetUniformLocation(shaderProgram, "projectionMatrix");
             
-        locColor = glGetUniformLocation(shaderProgram, "color");
+        diffuseTextureLoc = glGetUniformLocation(shaderProgram, "diffuseTexture");
     }
     
     override void bind(GenericMaterial mat, RenderingContext* rc)
     {
         auto idiffuse = "diffuse" in mat.inputs;
+    
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
         glUseProgram(shaderProgram);
         
@@ -74,12 +83,20 @@ class ShadelessBackend: GLSLMaterialBackend
         glUniformMatrix4fv(modelViewMatrixLoc, 1, GL_FALSE, rc.modelViewMatrix.arrayof.ptr);
         glUniformMatrix4fv(projectionMatrixLoc, 1, GL_FALSE, rc.projectionMatrix.arrayof.ptr);
 
-        Color4f color = Color4f(idiffuse.asVector4f);
-        glUniform4fv(locColor, 1, color.arrayof.ptr);
+        // Texture 0 - diffuse texture
+        if (idiffuse.texture is null)
+        {
+            Color4f color = Color4f(idiffuse.asVector4f);
+            idiffuse.texture = makeOnePixelTexture(mat, color);
+        }
+        glActiveTexture(GL_TEXTURE0);
+        idiffuse.texture.bind();
+        glUniform1i(diffuseTextureLoc, 0);
     }
     
     override void unbind(GenericMaterial mat)
     {
         glUseProgram(0);
+        glDisable(GL_BLEND);
     }
 }

@@ -34,6 +34,7 @@ BVHTree!Triangle meshBVH(Mesh mesh)
     return bvh;
 }
 
+// Attach a light to Entity
 class LightBehaviour: Behaviour
 {
     LightSource* light;
@@ -66,6 +67,8 @@ class TestScene: BaseScene3D
     TextureAsset aTexStone2Normal;
     TextureAsset aTexStone2Height;
     
+    TextureAsset aTexCloud;
+    
     OBJAsset aBuilding;
     OBJAsset aImrod;
     OBJAsset aSphere;
@@ -79,6 +82,7 @@ class TestScene: BaseScene3D
     BlinnPhongClusteredBackend bpcb;
     ShadelessBackend shadeless;
     SkyBackend skyb;
+    CloudBackend cloudb;
     CascadedShadowMap shadowMap;
     float rx = -45.0f;
     float ry = 0.0f;
@@ -86,6 +90,8 @@ class TestScene: BaseScene3D
     FirstPersonView fpview;
     
     Entity eSky;
+    Entity eCloudPlane1;
+    Entity eCloudPlane2;
     
     PhysicsWorld world;
     RigidBody bGround;
@@ -123,8 +129,10 @@ class TestScene: BaseScene3D
         aTexStone2Normal = addTextureAsset("data/textures/stone2-normal.png");
         aTexStone2Height = addTextureAsset("data/textures/stone2-height.png");
         
+        aTexCloud = addTextureAsset("data/textures/clouds.png");
+        
         aBuilding = New!OBJAsset(assetManager);
-        addAsset(aBuilding, "data/obj/level.obj");
+        addAsset(aBuilding, "data/obj/castle.obj");
         
         aImrod = New!OBJAsset(assetManager);
         addAsset(aImrod, "data/obj/imrod.obj");
@@ -141,7 +149,7 @@ class TestScene: BaseScene3D
     {
         super.onAllocate();
         
-        fpview = New!FirstPersonView(eventManager, Vector3f(15.0f, 1.8f, 0.0f), assetManager);
+        fpview = New!FirstPersonView(eventManager, Vector3f(25.0f, 1.8f, 0.0f), assetManager);
         fpview.camera.turn = -90.0f;
         view = fpview;
         
@@ -154,6 +162,7 @@ class TestScene: BaseScene3D
         bpcb = New!BlinnPhongClusteredBackend(clm, assetManager);
         shadeless = New!ShadelessBackend(assetManager);
         skyb = New!SkyBackend(assetManager);
+        cloudb = New!CloudBackend(assetManager);
         
         shadowMap = New!CascadedShadowMap(1024, this, assetManager);
         defaultMaterialBackend.shadowMap = shadowMap;
@@ -169,17 +178,25 @@ class TestScene: BaseScene3D
         mStone.diffuse = aTexStoneDiffuse.texture;
         mStone.normal = aTexStoneNormal.texture;
         mStone.height = aTexStoneHeight.texture;
-        mStone.roughness = 0.1f;
+        mStone.roughness = 0.2f;
         mStone.parallax = ParallaxSimple; //ParallaxOcclusionMapping;
         
         auto mGround = createMaterial(bpcb);
         mGround.diffuse = aTexStone2Diffuse.texture;
         mGround.normal = aTexStone2Normal.texture;
         mGround.height = aTexStone2Height.texture;
-        mGround.roughness = 0.1f;
+        mGround.roughness = 0.2f;
         mGround.parallax = ParallaxSimple;
         
         auto matSky = createMaterial(skyb);
+        
+        auto matCloud1 = createMaterial(cloudb);
+        matCloud1.diffuse = aTexCloud.texture;
+        matCloud1.timeScale = 0.005;
+        
+        auto matCloud2 = createMaterial(cloudb);
+        matCloud2.diffuse = aTexCloud.texture;
+        matCloud2.timeScale = 0.01;
         
         eSky = createEntity3D();
         eSky.material = matSky;
@@ -187,23 +204,37 @@ class TestScene: BaseScene3D
         eSky.scaling = Vector3f(100.0f, 100.0f, 100.0f);
         eSky.castShadow = false;
         
+        eCloudPlane1 = createEntity3D();
+        eCloudPlane1.drawable = New!ShapePlane(2000, 2000, 10, assetManager);
+        eCloudPlane1.material = matCloud1;
+        eCloudPlane1.rotation = rotationQuaternion(Axis.x, degtorad(180.0f));
+        eCloudPlane1.position.y = 60.0f;
+        eCloudPlane1.castShadow = false;
+        
+        eCloudPlane2 = createEntity3D();
+        eCloudPlane2.drawable = New!ShapePlane(2000, 2000, 5, assetManager);
+        eCloudPlane2.material = matCloud2;
+        eCloudPlane2.rotation = rotationQuaternion(Axis.x, degtorad(180.0f));
+        eCloudPlane2.position.y = 50.0f;
+        eCloudPlane2.castShadow = false;
+
         Entity eBuilding = createEntity3D();
         eBuilding.drawable = aBuilding.mesh;
         eBuilding.material = mStone;
         
+        clm.addLight(Vector3f(17.0f, 1.5f, -16.0f), Color4f(1.0f, 0.5f, 0.0f, 1.0f), 2.0f, 0.25f);
+        
         Entity eImrod = createEntity3D();
         eImrod.material = matImrod;
         eImrod.drawable = aImrod.mesh;
-        eImrod.position.x = 10.0f;
-        eImrod.position.y = 0.8f;
+        eImrod.position.x = -2.0f;
         eImrod.scaling = Vector3f(0.5, 0.5, 0.5);
         
         actor = New!Actor(iqm.model, assetManager);
         mrfixit = createEntity3D();
         mrfixit.drawable = actor;
         mrfixit.material = matDefault;
-        mrfixit.position.x = 15.0f;
-        mrfixit.position.y = 0.8f;
+        mrfixit.position.x = 2.0f;
         mrfixit.rotation = rotationQuaternion(Axis.y, degtorad(-90.0f));
         mrfixit.scaling = Vector3f(0.25, 0.25, 0.25);
         mrfixit.defaultController.swapZY = true;
@@ -214,12 +245,11 @@ class TestScene: BaseScene3D
         world.bvhRoot = bvh.root;
         
         RigidBody bGround = world.addStaticBody(Vector3f(0.0f, 0.0f, 0.0f));
-        gGround = New!GeomBox(Vector3f(100.0f, 0.8f, 100.0f));
-        world.addShapeComponent(bGround, gGround, Vector3f(0.0f, 0.0f, 0.0f), 1.0f);
+        gGround = New!GeomBox(Vector3f(100.0f, 1.0f, 100.0f));
+        world.addShapeComponent(bGround, gGround, Vector3f(0.0f, -1.0f, 0.0f), 1.0f);
         auto eGround = createEntity3D();
         eGround.drawable = New!ShapePlane(200, 200, 100, assetManager);
         eGround.material = mGround;
-        eGround.position.y = 0.8f;
 
         gLightBall = New!GeomSphere(lightBallRadius);
         
@@ -317,6 +347,8 @@ class TestScene: BaseScene3D
         environment.sunRotation = rotationQuaternion(Axis.y, degtorad(ry)) * rotationQuaternion(Axis.x, degtorad(rx));
         
         eSky.position = fpview.camera.position;
+        eCloudPlane1.position = fpview.camera.position + Vector3f(0, 80, 0);
+        eCloudPlane2.position = fpview.camera.position + Vector3f(0, 50, 0);
     }
     
     void updateShadow(double dt)

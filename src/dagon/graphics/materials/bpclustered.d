@@ -9,8 +9,6 @@ import dlib.math.matrix;
 import dlib.math.transformation;
 import dlib.math.interpolation;
 import dlib.image.color;
-import dlib.image.unmanaged;
-import dlib.image.render.shapes;
 
 import derelict.opengl.gl;
 
@@ -216,7 +214,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
                 shiftedTexCoord = parallaxOcclusionMapping(tE, texCoord, parallaxScale);
             
             // Normal mapping
-            vec3 tN = normalize(texture2D(normalTexture, shiftedTexCoord).rgb * 2.0 - 1.0);
+            vec3 tN = normalize(texture(normalTexture, shiftedTexCoord).rgb * 2.0 - 1.0);
             tN.y = -tN.y;
             N = normalize(TBN * tN);
 
@@ -393,15 +391,6 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         invLightDomainSizeLoc = glGetUniformLocation(shaderProgram, "invLightDomainSize");
         lightsTextureLoc = glGetUniformLocation(shaderProgram, "lightsTexture");
         indexTextureLoc = glGetUniformLocation(shaderProgram, "lightIndexTexture");
-    }
-    
-    Texture makeOnePixelTexture(Material mat, Color4f color)
-    {
-        auto img = New!UnmanagedImageRGBA8(8, 8);
-        img.fillColor(color);
-        auto tex = New!Texture(img, mat, false);
-        Delete(img);
-        return tex;
     }
     
     override void bind(GenericMaterial mat, RenderingContext* rc)

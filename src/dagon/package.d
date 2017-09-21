@@ -52,6 +52,7 @@ public
     import dagon.graphics.materials.bpclustered;
     import dagon.graphics.materials.shadeless;
     import dagon.graphics.materials.sky;
+    import dagon.graphics.materials.cloud;
     
     import dagon.graphics.filters.fxaa;
     import dagon.graphics.filters.lens;

@@ -4,9 +4,12 @@ import std.stdio;
 import dlib.core.memory;
 import dlib.math.vector;
 import dlib.image.color;
+import dlib.image.unmanaged;
+import dlib.image.render.shapes;
 import derelict.opengl.gl;
 import dagon.core.ownership;
 import dagon.graphics.material;
+import dagon.graphics.texture;
 import dagon.graphics.rc;
 
 interface GenericMaterialBackend
@@ -37,6 +40,15 @@ interface GenericMaterialBackend
             res = cast(int)p.asFloat;
         }
         return res;
+    }
+    
+    final Texture makeOnePixelTexture(Material mat, Color4f color)
+    {
+        auto img = New!UnmanagedImageRGBA8(8, 8);
+        img.fillColor(color);
+        auto tex = New!Texture(img, mat, false);
+        Delete(img);
+        return tex;
     }
     
     void bind(GenericMaterial mat, RenderingContext* rc);

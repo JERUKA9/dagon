@@ -8,7 +8,6 @@ import dlib.core.memory;
 import dlib.math.vector;
 import dlib.math.matrix;
 import dlib.image.color;
-import dlib.image.unmanaged;
 
 import derelict.opengl.gl;
 
