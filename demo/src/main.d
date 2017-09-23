@@ -37,9 +37,9 @@ BVHTree!Triangle meshBVH(Mesh mesh)
 // Attach a light to Entity
 class LightBehaviour: Behaviour
 {
-    LightSource* light;
+    LightSource light;
 
-    this(Entity e, LightSource* light)
+    this(Entity e, LightSource light)
     {
         super(e);
         
@@ -222,8 +222,6 @@ class TestScene: BaseScene3D
         eBuilding.drawable = aBuilding.mesh;
         eBuilding.material = mStone;
         
-        clm.addLight(Vector3f(17.0f, 1.5f, -16.0f), Color4f(1.0f, 0.5f, 0.0f, 1.0f), 2.0f, 0.25f);
-        
         Entity eImrod = createEntity3D();
         eImrod.material = matImrod;
         eImrod.drawable = aImrod.mesh;
@@ -265,11 +263,20 @@ class TestScene: BaseScene3D
         eText.drawable = text;
         eText.position = Vector3f(16.0f, eventManager.windowHeight - 30.0f, 0.0f);
         
+        text2 = New!TextLine(aFont.font, "0", assetManager);
+        text2.color = Color4f(1.0f, 1.0f, 1.0f, 0.7f);
+        
+        auto eText2 = createEntity2D();
+        eText2.drawable = text2;
+        eText2.position = Vector3f(16.0f, eventManager.windowHeight - 50.0f, 0.0f);
+        
         environment.useSkyColors = true;
         environment.atmosphericFog = true;
         
         initializedPhysics = true;
     }
+    
+    TextLine text2;
     
     override void onStart()
     {
@@ -303,22 +310,27 @@ class TestScene: BaseScene3D
         {
             Vector3f pos = fpview.camera.position + fpview.camera.characterMatrix.forward * -2.0f;
             Color4f color = lightColors[uniform(0, 9)];
-            auto mLightBall = createMaterial(shadeless);
-            mLightBall.diffuse = color;
-            
-            auto eLightBall = createEntity3D();
-            eLightBall.drawable = aSphere.mesh;
-            eLightBall.scaling = Vector3f(-lightBallRadius, -lightBallRadius, -lightBallRadius);
-            eLightBall.castShadow = false;
-            eLightBall.material = mLightBall;
-            eLightBall.position = pos;
-            auto bLightBall = world.addDynamicBody(Vector3f(0, 0, 0), 0.0f);
-            RigidBodyController rbc = New!RigidBodyController(eLightBall, bLightBall);
-            eLightBall.controller = rbc;
-            world.addShapeComponent(bLightBall, gLightBall, Vector3f(0.0f, 0.0f, 0.0f), 10.0f);
             
             auto light = clm.addLight(pos, color, 3.0f, lightBallRadius);
-            LightBehaviour lc = New!LightBehaviour(eLightBall, light);
+            
+            if (light)
+            {
+                auto mLightBall = createMaterial(shadeless);
+                mLightBall.diffuse = color;
+                
+                auto eLightBall = createEntity3D();
+                eLightBall.drawable = aSphere.mesh;
+                eLightBall.scaling = Vector3f(-lightBallRadius, -lightBallRadius, -lightBallRadius);
+                eLightBall.castShadow = false;
+                eLightBall.material = mLightBall;
+                eLightBall.position = pos;
+                auto bLightBall = world.addDynamicBody(Vector3f(0, 0, 0), 0.0f);
+                RigidBodyController rbc = New!RigidBodyController(eLightBall, bLightBall);
+                eLightBall.controller = rbc;
+                world.addShapeComponent(bLightBall, gLightBall, Vector3f(0.0f, 0.0f, 0.0f), 10.0f);
+                
+                LightBehaviour lc = New!LightBehaviour(eLightBall, light);
+            }
         }
     }
     
@@ -367,14 +379,21 @@ class TestScene: BaseScene3D
         updateEnvironment(dt);
         updateShadow(dt);
         
-        clm.update();
+        Frustum frustum;
+        Matrix4x4f mvp = rc3d.projectionMatrix * rc3d.viewMatrix;
+        frustum.fromMVP(mvp);
+        clm.update(frustum);
+
+        uint n = sprintf(lightsText.ptr, "FPS: %u | visible lights: %u | total lights: %u | max visible lights: %u", eventManager.fps, clm.currentlyVisibleLights, clm.lightSources.length, clm.maxNumLights);
+        string s = cast(string)lightsText[0..n];
+        text2.setText(s);
     }
+    
+    char[100] lightsText;
     
     override void onRender()
     {
         shadowMap.render(&rc3d);
-        
-        //super.onRender();
         
         // Render 3D objects to fb
         fb.bind();

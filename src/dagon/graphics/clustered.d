@@ -1,5 +1,6 @@
 module dagon.graphics.clustered;
 
+import std.stdio;
 import std.math;
 import std.conv;
 import std.random;
@@ -8,6 +9,7 @@ import dlib.core.memory;
 import dlib.math.vector;
 import dlib.container.array;
 import dlib.image.color;
+import dlib.geometry.frustum;
 
 import derelict.opengl.gl;
 
@@ -60,16 +62,25 @@ bool circleBoxIsec(Circle c, Box b)
     return (distance(c.center, closest) <= c.radius);
 }
 
-struct LightSource
+class LightSource
 {
     Vector3f position;
     Vector3f color;
     float radius; // max light attenuation radius
     float areaRadius; // light's own radius
     float energy; // 1.0 - full brightness, 0.0 - light is turned off
+    
+    this(Vector3f pos, Vector3f col, float attRadius, float areaRadius, float energy)
+    {
+        this.position = pos;
+        this.color = col;
+        this.radius = attRadius;
+        this.areaRadius = areaRadius;
+        this.energy = energy;
+    }
 }
 
-enum uint maxLightsPerNode = 32;
+enum uint maxLightsPerNode = 8;
 
 struct LightCluster
 {
@@ -77,6 +88,24 @@ struct LightCluster
     
     uint[maxLightsPerNode] lights;
     uint numLights = 0;
+}
+
+// TODO: move this to dlib.geometry.frustum
+bool frustumIntersectsSphere(ref Frustum f, Vector3f center, float radius)
+{
+	float d;
+
+	foreach(i, ref p; f.planes)
+    {
+		// find the signed distance to this plane
+		d = p.distance(center);
+
+		// if this distance is > sphere.radius, we are outside
+		if (d > radius)
+			return false;
+	}
+
+	return true;
 }
 
 class ClusteredLightManager: Owner
@@ -98,8 +127,10 @@ class ClusteredLightManager: Owner
     
     uint numLightAttributes = 4;
     
-    uint maxNumLights = 512;
+    uint maxNumLights;// = 512;
     uint maxNumIndices = 2048;
+    
+    uint currentlyVisibleLights = 0;
     
     GLuint clusterTexture;
     GLuint lightTexture;
@@ -131,6 +162,8 @@ class ClusteredLightManager: Owner
         
         foreach(ref c; clusters)
             c = 0;
+            
+        maxNumLights = maxNumIndices / maxLightsPerNode;
         
         lights = New!(Vector3f[])(maxNumLights * numLightAttributes);
         foreach(ref l; lights)
@@ -191,14 +224,21 @@ class ClusteredLightManager: Owner
         Delete(lights);
         Delete(lightIndices);
         
+        foreach(light; lightSources)
+            Delete(light);
+        
         lightSources.free();
         Delete(clusterData);
     }
     
-    LightSource* addLight(Vector3f position, Color4f color, float radius, float areaRadius = 0.0f)
-    {
-        lightSources.append(LightSource(position, color.rgb, radius, areaRadius, 1.0f));
-        return &lightSources.data[$-1];
+    LightSource addLight(Vector3f position, Color4f color, float radius, float areaRadius = 0.0f)
+    {        
+        lightSources.append(New!LightSource(position, color.rgb, radius, areaRadius, 1.0f));
+        
+        if (lightSources.length >= maxNumLights)
+            writeln("Warning: lights number exceeds index buffer capability (", maxNumLights, ")");
+        
+        return lightSources.data[$-1];
     }
     
     void bindClusterTexture()
@@ -227,8 +267,8 @@ class ClusteredLightManager: Owner
     {
         glBindTexture(GL_TEXTURE_1D, 0);
     }
-
-    void update()
+    
+    void update(ref Frustum frustum)
     {
         foreach(ref v; clusters)
             v = 0;
@@ -237,35 +277,48 @@ class ClusteredLightManager: Owner
         {        
             c.numLights = 0;
         }
+        
+        currentlyVisibleLights = 0;
 
-        foreach(i, light; lightSources)
-        if (i < maxNumLights)
+        foreach(i, light; lightSources.data)
         {
-            lights[cast(uint)i] = light.position;
-            lights[maxNumLights + cast(uint)i] = light.color;
-            lights[maxNumLights * 2 + cast(uint)i] = Vector3f(light.radius, light.areaRadius, light.energy);
-
-            Vector2f lightPosXZ = Vector2f(light.position.x, light.position.z);
-            Circle lightCircle = Circle(lightPosXZ, light.radius);
-            
-            uint x1 = cast(uint)clampf(floor((lightCircle.center.x - lightCircle.radius + sceneSize * 0.5f) / clusterSize), 0, domainSize-1);
-            uint y1 = cast(uint)clampf(floor((lightCircle.center.y - lightCircle.radius + sceneSize * 0.5f) / clusterSize), 0, domainSize-1);
-            uint x2 = cast(uint)clampf(x1 + ceil(lightCircle.radius + lightCircle.radius) + 1, 0, domainSize-1);
-            uint y2 = cast(uint)clampf(y1 + ceil(lightCircle.radius + lightCircle.radius) + 1, 0, domainSize-1);
-
-            foreach(y; y1..y2)
-            foreach(x; x1..x2)
+            if (frustumIntersectsSphere(frustum, light.position, light.radius))
             {
-                Box b = cellBox(x, y, clusterSize, sceneSize);
-                if (circleBoxIsec(lightCircle, b))
+                currentlyVisibleLights++;
+                
+                if (currentlyVisibleLights < maxNumLights)
                 {
-                    auto c = &clusterData[y * domainSize + x];
-                    if (c.numLights < maxLightsPerNode)
+                    uint index = currentlyVisibleLights - 1;
+                    
+                    lights[index] = light.position;
+                    lights[maxNumLights + index] = light.color;
+                    lights[maxNumLights * 2 + index] = Vector3f(light.radius, light.areaRadius, light.energy);
+
+                    Vector2f lightPosXZ = Vector2f(light.position.x, light.position.z);
+                    Circle lightCircle = Circle(lightPosXZ, light.radius);
+                    
+                    uint x1 = cast(uint)clampf(floor((lightCircle.center.x - lightCircle.radius + sceneSize * 0.5f) / clusterSize), 0, domainSize-1);
+                    uint y1 = cast(uint)clampf(floor((lightCircle.center.y - lightCircle.radius + sceneSize * 0.5f) / clusterSize), 0, domainSize-1);
+                    uint x2 = cast(uint)clampf(x1 + ceil(lightCircle.radius + lightCircle.radius) + 1, 0, domainSize-1);
+                    uint y2 = cast(uint)clampf(y1 + ceil(lightCircle.radius + lightCircle.radius) + 1, 0, domainSize-1);
+
+                    foreach(y; y1..y2)
+                    foreach(x; x1..x2)
                     {
-                        c.lights[c.numLights] = cast(uint)i;
-                        c.numLights = c.numLights + 1;
+                        Box b = cellBox(x, y, clusterSize, sceneSize);
+                        if (circleBoxIsec(lightCircle, b))
+                        {
+                            auto c = &clusterData[y * domainSize + x];
+                            if (c.numLights < maxLightsPerNode)
+                            {
+                                c.lights[c.numLights] = index;
+                                c.numLights = c.numLights + 1;
+                            }
+                        }
                     }
                 }
+                else
+                    break;
             }
         }
         
@@ -274,10 +327,7 @@ class ClusteredLightManager: Owner
         if (offset < maxNumIndices)
         {
             if (offset + c.numLights > maxNumIndices)
-            {
-                offset = maxNumIndices - c.numLights;
-                c.numLights = maxNumIndices - offset;
-            }
+                break;
         
             if (c.numLights)
             {                

@@ -59,10 +59,10 @@ class TextLine: Owner, Drawable
         this.height = font.height;
     }
 
-    void setText(string text)
+    void setText(string t)
     {
-        this.text = text;
-        this.width = font.width(text);
+        this.text = t;
+        this.width = font.width(t);
     }
 }
 
