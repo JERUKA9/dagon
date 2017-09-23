@@ -53,6 +53,7 @@ public
     import dagon.graphics.materials.shadeless;
     import dagon.graphics.materials.sky;
     import dagon.graphics.materials.cloud;
+    import dagon.graphics.materials.hud;
     
     import dagon.graphics.filters.fxaa;
     import dagon.graphics.filters.lens;

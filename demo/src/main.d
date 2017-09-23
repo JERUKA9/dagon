@@ -256,6 +256,10 @@ class TestScene: BaseScene3D
         character = New!CharacterController(world, fpview.camera.position, 80.0f, gSphere, assetManager);
         character.createSensor(gSensor, Vector3f(0.0f, -0.75f, 0.0f));
         
+        //foreach(y; -10..10)
+        //foreach(x; -6..6)
+        //    createLightBall(Vector3f(x, 30.0f, y) * lightBallRadius * 8.0f, lightColors[uniform(0, 9)], lightBallRadius, 3.0f);
+        
         auto text = New!TextLine(aFont.font, "Press <LMB> to switch mouse look, WASD to move, spacebar to jump, <RMB> to create a light, arrow keys to rotate the sun", assetManager);
         text.color = Color4f(1.0f, 1.0f, 1.0f, 0.7f);
         
@@ -310,28 +314,36 @@ class TestScene: BaseScene3D
         {
             Vector3f pos = fpview.camera.position + fpview.camera.characterMatrix.forward * -2.0f;
             Color4f color = lightColors[uniform(0, 9)];
-            
-            auto light = clm.addLight(pos, color, 3.0f, lightBallRadius);
-            
-            if (light)
-            {
-                auto mLightBall = createMaterial(shadeless);
-                mLightBall.diffuse = color;
-                
-                auto eLightBall = createEntity3D();
-                eLightBall.drawable = aSphere.mesh;
-                eLightBall.scaling = Vector3f(-lightBallRadius, -lightBallRadius, -lightBallRadius);
-                eLightBall.castShadow = false;
-                eLightBall.material = mLightBall;
-                eLightBall.position = pos;
-                auto bLightBall = world.addDynamicBody(Vector3f(0, 0, 0), 0.0f);
-                RigidBodyController rbc = New!RigidBodyController(eLightBall, bLightBall);
-                eLightBall.controller = rbc;
-                world.addShapeComponent(bLightBall, gLightBall, Vector3f(0.0f, 0.0f, 0.0f), 10.0f);
-                
-                LightBehaviour lc = New!LightBehaviour(eLightBall, light);
-            }
+            createLightBall(pos, color, lightBallRadius, 3.0f);
         }
+    }
+    
+    Entity createLightBall(Vector3f pos, Color4f color, float areaRadius, float volumeRadius)
+    {
+        auto light = clm.addLight(pos, color, volumeRadius, areaRadius);
+            
+        if (light)
+        {
+            auto mLightBall = createMaterial(shadeless);
+            mLightBall.diffuse = color;
+                
+            auto eLightBall = createEntity3D();
+            eLightBall.drawable = aSphere.mesh;
+            eLightBall.scaling = Vector3f(-areaRadius, -areaRadius, -areaRadius);
+            eLightBall.castShadow = false;
+            eLightBall.material = mLightBall;
+            eLightBall.position = pos;
+            auto bLightBall = world.addDynamicBody(Vector3f(0, 0, 0), 0.0f);
+            RigidBodyController rbc = New!RigidBodyController(eLightBall, bLightBall);
+            eLightBall.controller = rbc;
+            world.addShapeComponent(bLightBall, gLightBall, Vector3f(0.0f, 0.0f, 0.0f), 10.0f);
+                
+            LightBehaviour lc = New!LightBehaviour(eLightBall, light);
+            
+            return eLightBall;
+        }
+        
+        return null;
     }
     
     void updateCharacter(double dt)

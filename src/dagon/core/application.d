@@ -170,6 +170,8 @@ class Application: EventListener
         
         SDL_GL_MakeCurrent(window, glcontext);
         
+        //SDL_GL_SetSwapInterval(0);
+        
         if (fullscreen)
             SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
             

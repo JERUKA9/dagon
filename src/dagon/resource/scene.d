@@ -6,8 +6,10 @@ import dlib.core.memory;
 
 import dlib.container.array;
 import dlib.container.dict;
+import dlib.math.vector;
 import dlib.math.matrix;
 import dlib.math.transformation;
+import dlib.image.color;
 
 import derelict.opengl.gl;
 
@@ -21,8 +23,10 @@ import dagon.resource.fontasset;
 import dagon.graphics.environment;
 import dagon.graphics.rc;
 import dagon.graphics.view;
+import dagon.graphics.shapes;
 import dagon.graphics.materials.generic;
 import dagon.graphics.materials.bp;
+import dagon.graphics.materials.hud;
 import dagon.logics.entity;
 
 class Scene: EventListener
@@ -105,30 +109,6 @@ class Scene: EventListener
     void onLoading(float percentage)
     {
         // Render your loading screen here
-/*
-        glDisable(GL_DEPTH_TEST);
-
-        glViewport(0, 0, eventManager.windowWidth, eventManager.windowHeight);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        glMatrixMode(GL_PROJECTION);
-        auto projectionMatrix2D = orthoMatrix(
-            0.0f, eventManager.windowWidth, 0.0f, eventManager.windowHeight, 0.0f, 100.0f);
-        glLoadMatrixf(projectionMatrix2D.arrayof.ptr);
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
-
-        glColor4f(1.0, 1.0, 1.0, 1);
-        float margin = 2.0f;
-        float w = percentage * eventManager.windowWidth;
-        glBegin(GL_QUADS);
-        glVertex2f(margin, 10);
-        glVertex2f(margin, margin);
-        glVertex2f(w - margin, margin);
-        glVertex2f(w - margin, 10);
-        glEnd();
-*/
     }
 
     void onAllocate()
@@ -355,6 +335,11 @@ class BaseScene3D: Scene
 
     DynamicArray!Entity entities3D;
     DynamicArray!Entity entities2D;
+    
+    ShapeQuad loadingProgressBar;
+    Entity eLoadingProgressBar;
+    HUDMaterialBackend hudMaterialBackend;
+    GenericMaterial mLoadingProgressBar;
 
     double timer;
     double fixedTimeStep = 1.0 / 60.0;
@@ -362,6 +347,20 @@ class BaseScene3D: Scene
     this(SceneManager smngr)
     {
         super(smngr);
+        
+        rc3d.init(eventManager, environment);
+        rc3d.projectionMatrix = perspectiveMatrix(60.0f, eventManager.aspectRatio, 0.1f, 1000.0f);
+
+        rc2d.init(eventManager, environment);
+        rc2d.projectionMatrix = orthoMatrix(0.0f, eventManager.windowWidth, 0.0f, eventManager.windowHeight, 0.0f, 100.0f);
+
+        loadingProgressBar = New!ShapeQuad(assetManager);
+        eLoadingProgressBar = New!Entity(eventManager, assetManager);
+        eLoadingProgressBar.drawable = loadingProgressBar;
+        hudMaterialBackend = New!HUDMaterialBackend(assetManager);
+        mLoadingProgressBar = createMaterial(hudMaterialBackend);
+        mLoadingProgressBar.diffuse = Color4f(1, 1, 1, 1);
+        eLoadingProgressBar.material = mLoadingProgressBar;
     }
 
     Entity createEntity2D()
@@ -395,6 +394,32 @@ class BaseScene3D: Scene
     {
         entities3D.free();
         entities2D.free();
+    }
+    
+    override void onLoading(float percentage)
+    {
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(0, 0, eventManager.windowWidth, eventManager.windowHeight);
+        glViewport(0, 0, eventManager.windowWidth, eventManager.windowHeight);
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        float maxWidth = eventManager.windowWidth * 0.33f;
+        float x = (eventManager.windowWidth - maxWidth) * 0.5f;
+        float y = eventManager.windowHeight * 0.5f - 10;
+        float w = percentage * maxWidth;
+        
+        glDisable(GL_DEPTH_TEST);
+        mLoadingProgressBar.diffuse = Color4f(0.1, 0.1, 0.1, 1);
+        eLoadingProgressBar.position = Vector3f(x, y, 0);
+        eLoadingProgressBar.scaling = Vector3f(maxWidth, 10, 1);
+        eLoadingProgressBar.update(1.0/60.0);
+        eLoadingProgressBar.render(&rc2d);
+        
+        mLoadingProgressBar.diffuse = Color4f(1, 1, 1, 1);
+        eLoadingProgressBar.scaling = Vector3f(w, 10, 1);
+        eLoadingProgressBar.update(1.0/60.0);
+        eLoadingProgressBar.render(&rc2d);
     }
 
     override void onStart()
@@ -464,7 +489,8 @@ class BaseScene3D: Scene
         glEnable(GL_SCISSOR_TEST);
         glScissor(0, 0, eventManager.windowWidth, eventManager.windowHeight);
         glViewport(0, 0, eventManager.windowWidth, eventManager.windowHeight);
-        glClearColor(environment.backgroundColor.r, environment.backgroundColor.g, environment.backgroundColor.b, environment.backgroundColor.a);
+        if (environment)
+            glClearColor(environment.backgroundColor.r, environment.backgroundColor.g, environment.backgroundColor.b, environment.backgroundColor.a);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
