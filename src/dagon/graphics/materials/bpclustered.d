@@ -196,6 +196,55 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             return min(proj.x, proj.y);
         }
         
+        vec3 linePlaneIntersect(in vec3 lp, in vec3 lv, in vec3 pc, in vec3 pn)
+        {
+            return lp+lv*(dot(pn,pc-lp)/dot(pn,lv));
+        }
+        
+        void sphericalAreaLightContrib(
+            in vec3 P, in vec3 N, in vec3 E, in vec3 R,
+            in vec3 lPos, in float lRadius,
+            in float shininess, in float gloss, 
+            out float diff, out float spec)
+        {
+            vec3 positionToLightSource = lPos - P;
+	        vec3 centerToRay = dot(positionToLightSource, R) * R - positionToLightSource;
+	        vec3 closestPoint = positionToLightSource + centerToRay * clamp(lRadius / length(centerToRay), 0.0, 1.0);	
+	        vec3 L = normalize(closestPoint);
+            float NH = dot(N, normalize(L + E));
+            spec = pow(max(NH, 0.0), shininess) * gloss;
+            vec3 directionToLight = normalize(positionToLightSource);
+            diff = clamp(dot(N, directionToLight), 0.0, 1.0) - spec;
+        }
+
+        void rectAreaLightContrib(
+            in vec3 P, in vec3 N, in vec3 E, in vec3 R, 
+            in vec3 lPos, in vec3 lNormal, in vec3 lRight, in float width, in float height, 
+            in float shininess, in float gloss, 
+            out float diff, out float spec)
+        {
+            vec3 lUpEye = cross(lRight, lNormal);
+            vec3 ip = linePlaneIntersect(P, R, lPos, lNormal);
+            vec3 positionToLightSource = ip - P;
+            float a = dot(positionToLightSource, lNormal);
+            if (a < 0.0)
+            {
+	            vec3 ipVec = ip - lPos;
+    	        vec2 nearest2D = vec2(dot(ipVec, lRight), dot(ipVec, lUpEye));
+                vec2 nearest2DClamped = vec2(clamp(nearest2D.x, -width, width), clamp(nearest2D.y, -height, height));
+                vec3 nearest3D = lPos + lRight * nearest2DClamped.x + lUpEye * nearest2DClamped.y;
+                vec3 L = normalize(nearest3D - P);
+                float NH = dot(N, normalize(L + E));
+                spec = pow(max(NH, 0.0), shininess) * gloss;
+                diff = clamp(dot(N, L), 0.0, 1.0) - spec;
+            }
+            else
+            {
+                spec = 0.0;
+                diff = 0.0;
+            }
+        }
+        
         void main()
         {
             // Common vectors
@@ -247,6 +296,8 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
                 s1 = 1.0f;
             }
             
+            vec3 R = reflect(E, N);
+            
             // Fetch light cluster slice
             vec2 clusterCoord = worldPosition.xz * invLightDomainSize + 0.5;
             uint clusterIndex = texture(lightClusterTexture, clusterCoord).r;
@@ -266,26 +317,27 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
                 float lightAreaRadius = lightProps.y;
                 float lightEnergy = lightProps.z;
                 
-                lightPos = (viewMatrix * vec4(lightPos, 1.0)).xyz;
+                // TODO: read these from lightsTexture
+                //vec3 lightNormal = vec3(0.0, 0.0, 1.0);
+                //vec3 lightRight = vec3(1.0, 0.0, 0.0);
+                //float width = 1.0;
+                //float height = 0.25;
                 
-                vec3 lightPos2 = (viewMatrix * vec4(lightPos + vec3(0.0, 0.0, 1.0), 1.0)).xyz;
+                vec3 lightPosEye = (viewMatrix * vec4(lightPos, 1.0)).xyz;
+                //vec3 lightNormalEye = (viewMatrix * vec4(lightNormal, 0.0)).xyz;
+                //vec3 lightRightEye = (viewMatrix * vec4(lightRight, 0.0)).xyz;
                 
-                vec3 positionToLightSource = lightPos - eyePosition;
+                vec3 positionToLightSource = lightPosEye - eyePosition;
                 float distanceToLight = length(positionToLightSource);
-                vec3 directionToLight = normalize(positionToLightSource);
-                
-                vec3 r = reflect(E, N);
-                
-	            vec3 centerToRay = dot(positionToLightSource, r) * r - positionToLightSource;
-	            vec3 closestPoint = positionToLightSource + centerToRay * clamp(lightAreaRadius / length(centerToRay), 0.0, 1.0);	
-	            directionToLight = normalize(closestPoint);
-
+                vec3 directionToLight = normalize(positionToLightSource);                
                 float attenuation = clamp(1.0 - (distanceToLight / lightRadius), 0.0, 1.0) * lightEnergy;
                 
-                float NH = dot(N, normalize(directionToLight + E));
-                float spec = pow(max(NH, 0.0), shininess) * gloss;
-                float diff = clamp(dot(N, directionToLight), 0.0, 1.0) - spec;
+                float diff = 0.0;
+                float spec = 0.0;
                 
+                //rectAreaLightContrib(eyePosition, N, E, R, lightPosEye, lightNormalEye, lightRightEye, width, height, shininess, gloss, diff, spec);
+                sphericalAreaLightContrib(eyePosition, N, E, R, lightPosEye, lightAreaRadius, shininess, gloss, diff, spec);
+
                 pointDiffSum += lightColor * diff * attenuation;
                 pointSpecSum += lightColor * spec * attenuation;
             }
