@@ -4,6 +4,7 @@ import std.stdio;
 import dlib.core.memory;
 import dlib.math.vector;
 import dlib.image.color;
+import dlib.image.image;
 import dlib.image.unmanaged;
 import dlib.image.render.shapes;
 import derelict.opengl.gl;
@@ -46,9 +47,38 @@ interface GenericMaterialBackend
     {
         auto img = New!UnmanagedImageRGBA8(8, 8);
         img.fillColor(color);
-        auto tex = New!Texture(img, mat, false);
-        Delete(img);
+        auto tex = New!Texture(img, mat);
         return tex;
+    }
+    
+    final void packAlphaToTexture(Texture rgb, Texture alpha)
+    {
+        SuperImage rgbaImg = New!UnmanagedImageRGBA8(rgb.width, rgb.height);
+        foreach(y; 0..rgb.height)
+        foreach(x; 0..rgb.width)
+        {
+            Color4f col = rgb.image[x, y];
+            col.a = alpha.image[x, y].r;
+            rgbaImg[x, y] = col;
+        }
+            
+        rgb.release();
+        rgb.createFromImage(rgbaImg);
+    }
+    
+    final void packAlphaToTexture(Texture rgb, float alpha)
+    {
+        SuperImage rgbaImg = New!UnmanagedImageRGBA8(rgb.width, rgb.height);
+        foreach(y; 0..rgb.height)
+        foreach(x; 0..rgb.width)
+        {
+            Color4f col = rgb.image[x, y];
+            col.a = alpha;
+            rgbaImg[x, y] = col;
+        }
+            
+        rgb.release();
+        rgb.createFromImage(rgbaImg);
     }
     
     void bind(GenericMaterial mat, RenderingContext* rc);
@@ -75,9 +105,8 @@ class GenericMaterial: Material
         setInput("diffuse", Color4f(0.8f, 0.8f, 0.8f, 1.0f));
         setInput("specular", Color4f(1.0f, 1.0f, 1.0f, 1.0f));
         setInput("shadeless", false);
-        setInput("emit", Color4f(0.0f, 0.0f, 0.0f, 1.0f));
-        setInput("alpha", 1.0f);
-        setInput("brightness", 1.0f);
+        setInput("emission", Color4f(0.0f, 0.0f, 0.0f, 1.0f));
+        setInput("transparency", 1.0f);
         setInput("roughness", 0.5f);
         setInput("metallic", 0.0f);
         setInput("normal", Vector3f(0.0f, 0.0f, 1.0f));

@@ -20,6 +20,13 @@ import dagon.graphics.texture;
 import dagon.graphics.material;
 import dagon.graphics.materials.generic;
 
+/*
+ * Standard material backend for simple ambient-diffuse-specular BRDF with clustered shading.
+ * Works with variable number of lights per fragment.
+ * Supports area lights, Blinn-Phong specular, normal mapping, 
+ * parallax mapping (including parallax occlusion mapping), shadows, fog.
+ */
+
 class BlinnPhongClusteredBackend: GLSLMaterialBackend
 {
     private string vsText = 
@@ -77,7 +84,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         uniform mat4 viewMatrix;
         uniform sampler2D diffuseTexture;
         uniform sampler2D normalTexture;
-        uniform sampler2D heightTexture;
+        uniform sampler2D emissionTexture;
         
         uniform float roughness;
         
@@ -129,7 +136,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         
         vec2 parallaxMapping(in vec3 V, in vec2 T, in float scale)
         {
-            float height = texture(heightTexture, T).r;
+            float height = texture(normalTexture, T).a;
             height = height * parallaxScale + parallaxBias;
             return T + (height * V.xy);
         }
@@ -147,19 +154,19 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             vec2 dtex = scale * V.xy / V.z / numLayers;
 
             vec2 currentTextureCoords = T;
-            float heightFromTexture = texture(heightTexture, currentTextureCoords).r;
+            float heightFromTexture = texture(normalTexture, currentTextureCoords).a;
 
             while(heightFromTexture > curLayerHeight)
             {
                 curLayerHeight += layerHeight;
                 currentTextureCoords += dtex;
-                heightFromTexture = texture(heightTexture, currentTextureCoords).r;
+                heightFromTexture = texture(normalTexture, currentTextureCoords).a;
             }
 
             vec2 prevTCoords = currentTextureCoords - dtex;
 
             float nextH = heightFromTexture - curLayerHeight;
-            float prevH = texture(heightTexture, prevTCoords).r - curLayerHeight + layerHeight;
+            float prevH = texture(normalTexture, prevTCoords).a - curLayerHeight + layerHeight;
             float weight = nextH / (nextH - prevH);
             return prevTCoords * weight + currentTextureCoords * (1.0-weight);
         }
@@ -348,9 +355,11 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             
             // Diffuse texture
             vec4 diffuseColor = texture(diffuseTexture, shiftedTexCoord);
+            
+            vec4 emissionColor = texture(emissionTexture, shiftedTexCoord);
 
             vec3 objColor = diffuseColor.rgb * (environmentColor.rgb + pointDiffSum + sunColor * sunDiffBrightness * s1) + 
-                pointSpecSum + sunColor * sunSpecBrightness * s1;
+                pointSpecSum + sunColor * sunSpecBrightness * s1 + emissionColor.rgb * emissionColor.a;
                 
             vec3 fragColor = mix(fogColor.rgb, objColor, fogFactor);
             
@@ -382,7 +391,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
     
     GLint diffuseTextureLoc;
     GLint normalTextureLoc;
-    GLint heightTextureLoc;
+    GLint emissionTextureLoc;
     
     GLint environmentColorLoc;
     GLint sunDirectionLoc;
@@ -394,9 +403,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
     GLint invLightDomainSizeLoc;
     GLint clusterTextureLoc;
     GLint lightsTextureLoc;
-    //GLint locLightTextureWidth;
     GLint indexTextureLoc;
-    //GLint locIndexTextureWidth;
     
     ClusteredLightManager lightManager;
     CascadedShadowMap shadowMap;
@@ -430,7 +437,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         
         diffuseTextureLoc = glGetUniformLocation(shaderProgram, "diffuseTexture");
         normalTextureLoc = glGetUniformLocation(shaderProgram, "normalTexture");
-        heightTextureLoc = glGetUniformLocation(shaderProgram, "heightTexture");
+        emissionTextureLoc = glGetUniformLocation(shaderProgram, "emissionTexture");
         
         environmentColorLoc = glGetUniformLocation(shaderProgram, "environmentColor");
         sunDirectionLoc = glGetUniformLocation(shaderProgram, "sunDirection");
@@ -450,6 +457,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         auto idiffuse = "diffuse" in mat.inputs;
         auto inormal = "normal" in mat.inputs;
         auto iheight = "height" in mat.inputs;
+        auto iemission = "emission" in mat.inputs;
         auto iroughness = "roughness" in mat.inputs;
         bool fogEnabled = boolProp(mat, "fogEnabled");
         bool shadowsEnabled = boolProp(mat, "shadowsEnabled");
@@ -498,28 +506,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         glUniform4fv(fogColorLoc, 1, fogColor.arrayof.ptr);
         glUniform1f(fogStartLoc, fogStart);
         glUniform1f(fogEndLoc, fogEnd);
-        
-        // PBR parameters
-        glUniform1f(roughnessLoc, iroughness.asFloat);
-        
-        // Parallax mapping parameters
-        float parallaxScale = 0.0f;
-        float parallaxBias = 0.0f;
-        if (iheight.texture is null)
-        {
-            // These is for simple parallax mapping:
-            Color4f color = Color4f(0.0, 0.0, 0.0, 0);
-            iheight.texture = makeOnePixelTexture(mat, color);
-        }
-        else
-        {          
-            parallaxScale = 0.03f;
-            parallaxBias = -0.01f;
-        }
-        glUniform1f(parallaxScaleLoc, parallaxScale);
-        glUniform1f(parallaxBiasLoc, parallaxBias);
-        glUniform1i(parallaxMethodLoc, parallaxMethod);
-        
+                
         // Texture 0 - diffuse texture
         if (idiffuse.texture is null)
         {
@@ -530,30 +517,56 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         idiffuse.texture.bind();
         glUniform1i(diffuseTextureLoc, 0);
         
-        // Texture 1 - normal map
-        if (inormal.texture is null)
+        // Texture 1 - normal map + parallax map
+        float parallaxScale = 0.03f;
+        float parallaxBias = -0.01f;
+        bool normalTexturePrepared = inormal.texture !is null;
+        if (normalTexturePrepared) 
+            normalTexturePrepared = inormal.texture.image.channels == 4;
+        if (!normalTexturePrepared)
         {
-            Color4f color = Color4f(0.5f, 0.5f, 1.0f); // default normal pointing upwards
-            inormal.texture = makeOnePixelTexture(mat, color);
+            if (inormal.texture is null)
+            {
+                Color4f color = Color4f(0.5f, 0.5f, 1.0f, 0.0f); // default normal pointing upwards
+                inormal.texture = makeOnePixelTexture(mat, color);
+            }
+            else
+            {
+                if (iheight.texture !is null)
+                    packAlphaToTexture(inormal.texture, iheight.texture);
+                else
+                    packAlphaToTexture(inormal.texture, 0.0f);
+            }
         }
         glActiveTexture(GL_TEXTURE1);
         inormal.texture.bind();
         glUniform1i(normalTextureLoc, 1);
+        glUniform1f(parallaxScaleLoc, parallaxScale);
+        glUniform1f(parallaxBiasLoc, parallaxBias);
+        glUniform1i(parallaxMethodLoc, parallaxMethod);
         
-        // Texture 2 - height map
-        // TODO: pass height data as an alpha channel of normap map, 
-        // thus releasing space for some additional texture
-        glActiveTexture(GL_TEXTURE2);
-        iheight.texture.bind();
-        glUniform1i(heightTextureLoc, 2);
+        // Texture 2 is reserved for PBR maps (roughness + metallic)
+        glUniform1f(roughnessLoc, iroughness.asFloat);
         
-        // Texture 3 - shadow map cascades (3 layer texture array)
+        // Texture 3 - emission map
+        if (iemission.texture is null)
+        {
+            Color4f color = Color4f(iemission.asVector4f);
+            iemission.texture = makeOnePixelTexture(mat, color);
+        }
+        glActiveTexture(GL_TEXTURE3);
+        iemission.texture.bind();
+        glUniform1i(emissionTextureLoc, 3);
+        
+        // Texture 4 is reserved for environment map
+        
+        // Texture 5 - shadow map cascades (3 layer texture array)
         if (shadowMap && shadowsEnabled)
         {
-            glActiveTexture(GL_TEXTURE3);
+            glActiveTexture(GL_TEXTURE5);
             glBindTexture(GL_TEXTURE_2D_ARRAY, shadowMap.depthTexture);
 
-            glUniform1i(shadowTextureArrayLoc, 3);
+            glUniform1i(shadowTextureArrayLoc, 5);
             glUniform1f(shadowTextureSizeLoc, cast(float)shadowMap.size);
             glUniformMatrix4fv(shadowMatrix1Loc, 1, 0, shadowMap.area1.shadowMatrix.arrayof.ptr);
             glUniformMatrix4fv(shadowMatrix2Loc, 1, 0, shadowMap.area2.shadowMatrix.arrayof.ptr);
@@ -569,9 +582,6 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             glUniformMatrix4fv(shadowMatrix3Loc, 1, 0, defaultShadowMat.arrayof.ptr);
             glUniform1i(useShadowsLoc, 0);
         }
-        
-        // Texture 4 is reserved for PBR maps (roughness + metallic + emission)
-        // Texture 5 is reserved for environment map
 
         // Texture 6 - light clusters
         glActiveTexture(GL_TEXTURE6);
@@ -596,7 +606,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
     {
         auto idiffuse = "diffuse" in mat.inputs;
         auto inormal = "normal" in mat.inputs;
-        auto iheight = "height" in mat.inputs;
+        auto iemission = "emission" in mat.inputs;
         
         glActiveTexture(GL_TEXTURE0);
         idiffuse.texture.unbind();
@@ -604,10 +614,10 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         glActiveTexture(GL_TEXTURE1);
         inormal.texture.unbind();
         
-        glActiveTexture(GL_TEXTURE2);
-        iheight.texture.unbind();
-        
         glActiveTexture(GL_TEXTURE3);
+        iemission.texture.unbind();
+        
+        glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
         
         glActiveTexture(GL_TEXTURE6);

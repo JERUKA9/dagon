@@ -58,6 +58,7 @@ class TestScene: BaseScene3D
 
     TextureAsset aTexImrodDiffuse;
     TextureAsset aTexImrodNormal;
+    TextureAsset aTexImrodEmission;
     
     TextureAsset aTexStoneDiffuse;
     TextureAsset aTexStoneNormal;
@@ -120,6 +121,7 @@ class TestScene: BaseScene3D
     
         aTexImrodDiffuse = addTextureAsset("data/obj/imrod-diffuse.png");
         aTexImrodNormal = addTextureAsset("data/obj/imrod-normal.png");
+        aTexImrodEmission = addTextureAsset("data/obj/imrod-emit.png");
         
         aTexStoneDiffuse = addTextureAsset("data/textures/stone-albedo.png");
         aTexStoneNormal = addTextureAsset("data/textures/stone-normal.png");
@@ -173,6 +175,7 @@ class TestScene: BaseScene3D
         auto matImrod = createMaterial(bpcb);
         matImrod.diffuse = aTexImrodDiffuse.texture;
         matImrod.normal = aTexImrodNormal.texture;
+        matImrod.emission = aTexImrodEmission.texture;
 
         auto mStone = createMaterial(bpcb);
         mStone.diffuse = aTexStoneDiffuse.texture;
@@ -185,7 +188,7 @@ class TestScene: BaseScene3D
         mGround.diffuse = aTexStone2Diffuse.texture;
         mGround.normal = aTexStone2Normal.texture;
         mGround.height = aTexStone2Height.texture;
-        mGround.roughness = 0.2f;
+        mGround.roughness = 0.1f;
         mGround.parallax = ParallaxSimple;
         
         auto matSky = createMaterial(skyb);
@@ -256,10 +259,6 @@ class TestScene: BaseScene3D
         character = New!CharacterController(world, fpview.camera.position, 80.0f, gSphere, assetManager);
         character.createSensor(gSensor, Vector3f(0.0f, -0.75f, 0.0f));
         
-        //foreach(y; -10..10)
-        //foreach(x; -6..6)
-        //    createLightBall(Vector3f(x, 30.0f, y) * lightBallRadius * 8.0f, lightColors[uniform(0, 9)], lightBallRadius, 3.0f);
-        
         auto text = New!TextLine(aFont.font, "Press <LMB> to switch mouse look, WASD to move, spacebar to jump, <RMB> to create a light, arrow keys to rotate the sun", assetManager);
         text.color = Color4f(1.0f, 1.0f, 1.0f, 0.7f);
         
@@ -314,7 +313,7 @@ class TestScene: BaseScene3D
         {
             Vector3f pos = fpview.camera.position + fpview.camera.characterMatrix.forward * -2.0f;
             Color4f color = lightColors[uniform(0, 9)];
-            createLightBall(pos, color, lightBallRadius, 3.0f);
+            createLightBall(pos, color, lightBallRadius, 4.0f);
         }
     }
     

@@ -69,10 +69,6 @@ class Texture: Owner
     void createFromImage(SuperImage img, bool genMipmaps = false)
     {
         image = img;
-    
-        if (glIsTexture(tex))
-            glDeleteTextures(1, &tex);
-
         width = img.width;
         height = img.height;
 
@@ -131,6 +127,11 @@ class Texture: Owner
     {
         if (glIsTexture(tex))
             glDeleteTextures(1, &tex);
+        if (image)
+        {
+            Delete(image);
+            image = null;
+        }
     }
 
     ~this()

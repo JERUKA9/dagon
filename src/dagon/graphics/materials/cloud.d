@@ -74,7 +74,7 @@ class CloudBackend: GLSLMaterialBackend
             vec4 diffuseColor = texture(diffuseTexture, texCoord);
             
             float diff = (dot(sunDirection, E) + 1.0) * 0.5;
-            vec3 color = diffuseColor.rgb * (environmentColor.rgb * 2.0 + sunColor * diff);
+            vec3 color = diffuseColor.rgb * sunColor * 0.8 * (0.25 + diff);
 
             float fragAlpha = mix(diffuseColor.a, 0.0f, distanceFactor);
             

@@ -1,11 +1,19 @@
 module dagon.graphics.environment;
 
 import dlib.image.color;
+import dlib.image.hsv;
 import dlib.math.utils;
 import dlib.math.vector;
 import dlib.math.quaternion;
 import dlib.math.interpolation;
 import dagon.core.ownership;
+
+Color4f saturation(Color4f c, float s)
+{
+    ColorHSVAf hsv = ColorHSVAf(c);
+    hsv.scaleSaturation(s);
+    return hsv.rgba;
+}
 
 class Environment: Owner
 {
@@ -17,7 +25,7 @@ class Environment: Owner
 
     Color4f fogColor = Color4f(0.1f, 0.1f, 0.1f, 1.0f);
     float fogStart = 50.0f;
-    float fogEnd = 200.0f;
+    float fogEnd = 150.0f;
     
     Color4f sunZenithColor = Color4f(1.0, 1.0, 1.0, 1.0);
     Color4f sunHorizonColor = Color4f(0.9, 0.4, 0.0, 1.0);
@@ -52,10 +60,10 @@ class Environment: Owner
             skyHorizonColor = lerpColorsBySunAngle(skyHorizonColorAtMidday, skyHorizonColorAtSunset, skyHorizonColorAtNight);
             backgroundColor = skyZenithColor;
             
-            ambientConstant = Color4f(0.0f, 0.05f, 0.05f) + skyZenithColor * 0.3f;
+            ambientConstant = Color4f(0.0f, 0.05f, 0.05f) + saturation(skyZenithColor, 0.5f) * 0.5f;
             
             if (atmosphericFog)
-                fogColor = (skyZenithColor + skyHorizonColor) * 0.5f;
+                fogColor = lerpColorsBySunAngle(skyZenithColor, skyHorizonColor, Color4f(0, 0, 0, 0));
             else
                 fogColor = backgroundColor;
             

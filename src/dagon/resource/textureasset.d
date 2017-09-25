@@ -21,7 +21,7 @@ import dagon.graphics.texture;
 class TextureAsset: Asset
 {
     UnmanagedImageFactory imageFactory;
-    SuperImage image;
+    //SuperImage image;
     Texture texture;
 
     this(UnmanagedImageFactory imgfac, Owner o)
@@ -34,8 +34,6 @@ class TextureAsset: Asset
     ~this()
     {
         release();
-        //if (texture)
-        //    Delete(texture);
     }
 
     override bool loadThreadSafePart(string filename, InputStream istrm, ReadOnlyFileSystem fs, AssetManager mngr)
@@ -60,8 +58,8 @@ class TextureAsset: Asset
         }
 
         //auto res = loadPNG(istrm, imageFactory);
-        image = res[0];
-        if (image !is null)
+        texture.image = res[0];
+        if (texture.image !is null)
         {
             return true;
         }
@@ -74,9 +72,9 @@ class TextureAsset: Asset
 
     override bool loadThreadUnsafePart()
     {
-        if (image !is null)
+        if (texture.image !is null)
         {
-            texture.createFromImage(image);
+            texture.createFromImage(texture.image);
             if (texture.valid)
             {
                 return true;
@@ -92,8 +90,6 @@ class TextureAsset: Asset
 
     override void release()
     {
-        if (image)
-            Delete(image);
         if (texture)
             texture.release();
     }
