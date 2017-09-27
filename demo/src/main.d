@@ -13,10 +13,11 @@ import dmech.bvh;
 import rigidbodycontroller;
 import character;
 
-BVHTree!Triangle meshBVH(Mesh mesh)
+BVHTree!Triangle meshBVH(Mesh[] meshes)
 {
     DynamicArray!Triangle tris;
 
+    foreach(mesh; meshes)
     foreach(tri; mesh)
     {
         Triangle tri2 = tri;
@@ -32,24 +33,6 @@ BVHTree!Triangle meshBVH(Mesh mesh)
     BVHTree!Triangle bvh = New!(BVHTree!Triangle)(tris, 4);
     tris.free();
     return bvh;
-}
-
-// Attach a light to Entity
-class LightBehaviour: Behaviour
-{
-    LightSource light;
-
-    this(Entity e, LightSource light)
-    {
-        super(e);
-        
-        this.light = light;
-    }
-
-    override void update(double dt)
-    {
-        light.position = entity.position;
-    }
 }
 
 class TestScene: BaseScene3D
@@ -70,7 +53,11 @@ class TestScene: BaseScene3D
     
     TextureAsset aTexCloud;
     
+    TextureAsset aTexGrass;
+    TextureAsset aTexRock;
+    
     OBJAsset aBuilding;
+    OBJAsset aTerrain;
     OBJAsset aImrod;
     OBJAsset aSphere;
     
@@ -84,6 +71,7 @@ class TestScene: BaseScene3D
     ShadelessBackend shadeless;
     SkyBackend skyb;
     CloudBackend cloudb;
+    TerrainBackend terrb;
     CascadedShadowMap shadowMap;
     float rx = -45.0f;
     float ry = 0.0f;
@@ -133,8 +121,14 @@ class TestScene: BaseScene3D
         
         aTexCloud = addTextureAsset("data/textures/clouds.png");
         
+        aTexGrass = addTextureAsset("data/textures/grass.png");
+        aTexRock = addTextureAsset("data/textures/rock.png");
+        
         aBuilding = New!OBJAsset(assetManager);
         addAsset(aBuilding, "data/obj/castle.obj");
+        
+        aTerrain = New!OBJAsset(assetManager);
+        addAsset(aTerrain, "data/obj/terrain.obj");
         
         aImrod = New!OBJAsset(assetManager);
         addAsset(aImrod, "data/obj/imrod.obj");
@@ -151,7 +145,7 @@ class TestScene: BaseScene3D
     {
         super.onAllocate();
         
-        fpview = New!FirstPersonView(eventManager, Vector3f(25.0f, 1.8f, 0.0f), assetManager);
+        fpview = New!FirstPersonView(eventManager, Vector3f(25.0f, 5.0f, 0.0f), assetManager);
         fpview.camera.turn = -90.0f;
         view = fpview;
         
@@ -165,10 +159,12 @@ class TestScene: BaseScene3D
         shadeless = New!ShadelessBackend(assetManager);
         skyb = New!SkyBackend(assetManager);
         cloudb = New!CloudBackend(assetManager);
+        terrb = New!TerrainBackend(clm, assetManager);
         
         shadowMap = New!CascadedShadowMap(1024, this, assetManager);
         defaultMaterialBackend.shadowMap = shadowMap;
         bpcb.shadowMap = shadowMap;
+        terrb.shadowMap = shadowMap;
         
         auto matDefault = createMaterial(bpcb);
         
@@ -190,6 +186,11 @@ class TestScene: BaseScene3D
         mGround.height = aTexStone2Height.texture;
         mGround.roughness = 0.1f;
         mGround.parallax = ParallaxSimple;
+        
+        auto mTerrain = createMaterial(terrb);
+        mTerrain.roughness = 0.9f;
+        mTerrain.grass = aTexGrass.texture;
+        mTerrain.mounts = aTexRock.texture;
         
         auto matSky = createMaterial(skyb);
         
@@ -220,37 +221,43 @@ class TestScene: BaseScene3D
         eCloudPlane2.rotation = rotationQuaternion(Axis.x, degtorad(180.0f));
         eCloudPlane2.position.y = 50.0f;
         eCloudPlane2.castShadow = false;
+        
+        Entity eTerrain = createEntity3D();
+        eTerrain.drawable = aTerrain.mesh;
+        eTerrain.material = mTerrain;
 
         Entity eBuilding = createEntity3D();
         eBuilding.drawable = aBuilding.mesh;
         eBuilding.material = mStone;
         
-        Entity eImrod = createEntity3D();
-        eImrod.material = matImrod;
-        eImrod.drawable = aImrod.mesh;
-        eImrod.position.x = -2.0f;
-        eImrod.scaling = Vector3f(0.5, 0.5, 0.5);
+        //Entity eImrod = createEntity3D();
+        //eImrod.material = matImrod;
+        //eImrod.drawable = aImrod.mesh;
+        //eImrod.position.x = -2.0f;
+        //eImrod.scaling = Vector3f(0.5, 0.5, 0.5);
         
         actor = New!Actor(iqm.model, assetManager);
         mrfixit = createEntity3D();
         mrfixit.drawable = actor;
         mrfixit.material = matDefault;
         mrfixit.position.x = 2.0f;
+        mrfixit.position.y = 0.6f;
         mrfixit.rotation = rotationQuaternion(Axis.y, degtorad(-90.0f));
         mrfixit.scaling = Vector3f(0.25, 0.25, 0.25);
         mrfixit.defaultController.swapZY = true;
         
         world = New!PhysicsWorld();
 
-        bvh = meshBVH(aBuilding.mesh);
+        Mesh[2] meshes = [aBuilding.mesh, aTerrain.mesh];
+        bvh = meshBVH(meshes);
         world.bvhRoot = bvh.root;
         
-        RigidBody bGround = world.addStaticBody(Vector3f(0.0f, 0.0f, 0.0f));
+        //RigidBody bGround = world.addStaticBody(Vector3f(0.0f, 0.0f, 0.0f));
         gGround = New!GeomBox(Vector3f(100.0f, 1.0f, 100.0f));
-        world.addShapeComponent(bGround, gGround, Vector3f(0.0f, -1.0f, 0.0f), 1.0f);
-        auto eGround = createEntity3D();
-        eGround.drawable = New!ShapePlane(200, 200, 100, assetManager);
-        eGround.material = mGround;
+        //world.addShapeComponent(bGround, gGround, Vector3f(0.0f, -1.0f, 0.0f), 1.0f);
+        //auto eGround = createEntity3D();
+        //eGround.drawable = New!ShapePlane(200, 200, 100, assetManager);
+        //eGround.material = mGround;
 
         gLightBall = New!GeomSphere(lightBallRadius);
         
@@ -370,8 +377,8 @@ class TestScene: BaseScene3D
         environment.sunRotation = rotationQuaternion(Axis.y, degtorad(ry)) * rotationQuaternion(Axis.x, degtorad(rx));
         
         eSky.position = fpview.camera.position;
-        eCloudPlane1.position = fpview.camera.position + Vector3f(0, 80, 0);
-        eCloudPlane2.position = fpview.camera.position + Vector3f(0, 50, 0);
+        eCloudPlane1.position = fpview.camera.position + Vector3f(0, 150, 0);
+        eCloudPlane2.position = fpview.camera.position + Vector3f(0, 100, 0);
     }
     
     void updateShadow(double dt)
@@ -389,11 +396,8 @@ class TestScene: BaseScene3D
         
         updateEnvironment(dt);
         updateShadow(dt);
-        
-        Frustum frustum;
-        Matrix4x4f mvp = rc3d.projectionMatrix * rc3d.viewMatrix;
-        frustum.fromMVP(mvp);
-        clm.update(frustum);
+
+        clm.update(&rc3d); 
 
         uint n = sprintf(lightsText.ptr, "FPS: %u | visible lights: %u | total lights: %u | max visible lights: %u", eventManager.fps, clm.currentlyVisibleLights, clm.lightSources.length, clm.maxNumLights);
         string s = cast(string)lightsText[0..n];

@@ -2,6 +2,8 @@ module dagon.graphics.rc;
 
 import dlib.math.vector;
 import dlib.math.matrix;
+import dlib.math.transformation;
+import dlib.geometry.frustum;
 import derelict.opengl.gl;
 import dagon.core.event;
 import dagon.graphics.environment;
@@ -25,6 +27,8 @@ struct RenderingContext
 
     Matrix4x4f projectionMatrix;
     Matrix4x4f normalMatrix;
+    
+    Frustum frustum;
 
     EventManager eventManager;
     Environment environment;
@@ -50,13 +54,17 @@ struct RenderingContext
         overrideMaterial = null;
         time = 0.0f;
     }
-
-    void apply()
+    
+    void init3D(EventManager emngr, Environment env, float fov, float znear, float zfar)
     {
-        //glMatrixMode(GL_PROJECTION);
-        //glLoadMatrixf(projectionMatrix.arrayof.ptr);
-        //glMatrixMode(GL_MODELVIEW);
-        //glLoadMatrixf(viewMatrix.arrayof.ptr);
+        init(emngr, env);
+        projectionMatrix = perspectiveMatrix(fov, emngr.aspectRatio, znear, zfar);
+    }
+    
+    void init2D(EventManager emngr, Environment env, float znear, float zfar)
+    {
+        init(emngr, env);
+        projectionMatrix = orthoMatrix(0.0f, emngr.windowWidth, 0.0f, emngr.windowHeight, znear, zfar);
     }
 }
 

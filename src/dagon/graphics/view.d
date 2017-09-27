@@ -18,5 +18,7 @@ interface View
         rc.modelViewMatrix = rc.viewMatrix;
         rc.normalMatrix = rc.invViewMatrix.transposed;
         rc.cameraPosition = cameraPosition();
+        Matrix4x4f mvp = rc.projectionMatrix * rc.viewMatrix;
+        rc.frustum.fromMVP(mvp);
     }
 }

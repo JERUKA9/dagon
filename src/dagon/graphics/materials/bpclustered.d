@@ -82,6 +82,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
         #version 330 core
         
         uniform mat4 viewMatrix;
+        uniform mat4 invViewMatrix;
         uniform sampler2D diffuseTexture;
         uniform sampler2D normalTexture;
         uniform sampler2D emissionTexture;
@@ -259,6 +260,8 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             vec3 E = normalize(-eyePosition);
             mat3 TBN = cotangentFrame(eyeNormal, eyePosition, texCoord);
             vec3 tE = normalize(E * TBN);
+            
+            vec3 cameraPosition = invViewMatrix[3].xyz;
 
             // Parallax mapping
             vec2 shiftedTexCoord = texCoord;
@@ -306,7 +309,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             vec3 R = reflect(E, N);
             
             // Fetch light cluster slice
-            vec2 clusterCoord = worldPosition.xz * invLightDomainSize + 0.5;
+            vec2 clusterCoord = (worldPosition.xz - cameraPosition.xz) * invLightDomainSize + 0.5;
             uint clusterIndex = texture(lightClusterTexture, clusterCoord).r;
             uint offset = (clusterIndex << 16) >> 16;
             uint size = (clusterIndex >> 16);

@@ -24,8 +24,8 @@ class Environment: Owner
     // TODO: ambient map (cubemap and equirectangular map)
 
     Color4f fogColor = Color4f(0.1f, 0.1f, 0.1f, 1.0f);
-    float fogStart = 50.0f;
-    float fogEnd = 150.0f;
+    float fogStart = 100.0f;
+    float fogEnd = 300.0f;
     
     Color4f sunZenithColor = Color4f(1.0, 1.0, 1.0, 1.0);
     Color4f sunHorizonColor = Color4f(0.9, 0.4, 0.0, 1.0);

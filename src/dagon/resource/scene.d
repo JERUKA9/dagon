@@ -424,11 +424,8 @@ class BaseScene3D: Scene
 
     override void onStart()
     {
-        rc3d.init(eventManager, environment);
-        rc3d.projectionMatrix = perspectiveMatrix(60.0f, eventManager.aspectRatio, 0.1f, 1000.0f);
-
-        rc2d.init(eventManager, environment);
-        rc2d.projectionMatrix = orthoMatrix(0.0f, eventManager.windowWidth, 0.0f, eventManager.windowHeight, 0.0f, 100.0f);
+        rc3d.init3D(eventManager, environment, 60.0f, 0.1f, 1000.0f);
+        rc2d.init2D(eventManager, environment, 0.0f, 100.0f);
 
         timer = 0.0;
     }

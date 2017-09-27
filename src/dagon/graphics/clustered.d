@@ -16,6 +16,8 @@ import derelict.opengl.gl;
 import dagon.core.ownership;
 import dagon.graphics.view;
 import dagon.graphics.rc;
+import dagon.logics.entity;
+import dagon.logics.behaviour;
 
 float clampf(float x, float mi, float ma)
 {
@@ -119,6 +121,8 @@ class ClusteredLightManager: Owner
     Vector3f[] lights;
     uint[] lightIndices;
     
+    Vector3f position;
+    
     Vector2f clustersPosition;
     float sceneSize = 200.0f;
     float invSceneSize;
@@ -140,6 +144,8 @@ class ClusteredLightManager: Owner
     {
         super(o);
         view = v;
+        
+        position = Vector3f(0, 0, 0);
         
         this.sceneSize = sceneSize;
         this.domainSize = numClusters;
@@ -268,8 +274,10 @@ class ClusteredLightManager: Owner
         glBindTexture(GL_TEXTURE_1D, 0);
     }
     
-    void update(ref Frustum frustum)
+    void update(RenderingContext* rc) //(Vector3f camPos, ref Frustum frustum)
     {
+        position = rc.cameraPosition;
+    
         foreach(ref v; clusters)
             v = 0;
             
@@ -282,7 +290,7 @@ class ClusteredLightManager: Owner
 
         foreach(i, light; lightSources.data)
         {
-            if (frustumIntersectsSphere(frustum, light.position, light.radius))
+            if (frustumIntersectsSphere(rc.frustum, light.position, light.radius))
             {
                 currentlyVisibleLights++;
                 
@@ -294,7 +302,8 @@ class ClusteredLightManager: Owner
                     lights[maxNumLights + index] = light.color;
                     lights[maxNumLights * 2 + index] = Vector3f(light.radius, light.areaRadius, light.energy);
 
-                    Vector2f lightPosXZ = Vector2f(light.position.x, light.position.z);
+                    Vector3f lightPosLocal = light.position - position;
+                    Vector2f lightPosXZ = Vector2f(lightPosLocal.x, lightPosLocal.z);
                     Circle lightCircle = Circle(lightPosXZ, light.radius);
                     
                     uint x1 = cast(uint)clampf(floor((lightCircle.center.x - lightCircle.radius + sceneSize * 0.5f) / clusterSize), 0, domainSize-1);
@@ -355,5 +364,23 @@ class ClusteredLightManager: Owner
         glBindTexture(GL_TEXTURE_1D, indexTexture);
         glTexSubImage1D(GL_TEXTURE_1D, 0, 0, maxNumIndices, GL_RED_INTEGER, GL_UNSIGNED_INT, lightIndices.ptr);
         glBindTexture(GL_TEXTURE_1D, 0);
+    }
+}
+
+// Attach a light to Entity
+class LightBehaviour: Behaviour
+{
+    LightSource light;
+
+    this(Entity e, LightSource light)
+    {
+        super(e);
+        
+        this.light = light;
+    }
+
+    override void update(double dt)
+    {
+        light.position = entity.position;
     }
 }
