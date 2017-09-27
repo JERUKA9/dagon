@@ -29,7 +29,7 @@ Currently Dagon/gl33 has the following features:
 
 [![Screenshot1](/screenshots/imrod-thumb.jpg)](/screenshots/imrod.jpg)
 [![Screenshot2](/screenshots/area-thumb.jpg)](/screenshots/area.jpg)
-[![Screenshot3](/screenshots/clouds-thumb.jpg)](/screenshots/clouds.jpg)
+[![Screenshot3](/screenshots/terrain-thumb.jpg)](/screenshots/terrain.jpg)
 
 Dagon is still under development and lacks a lot of important functionality. Currently it is not recommended to use Dagon in production due to unstable API.
 
