@@ -258,7 +258,7 @@ class BlinnPhongClusteredBackend: GLSLMaterialBackend
             // Common vectors
             vec3 N = normalize(eyeNormal);
             vec3 E = normalize(-eyePosition);
-            mat3 TBN = cotangentFrame(eyeNormal, eyePosition, texCoord);
+            mat3 TBN = cotangentFrame(N, eyePosition, texCoord);
             vec3 tE = normalize(E * TBN);
             
             vec3 cameraPosition = invViewMatrix[3].xyz;

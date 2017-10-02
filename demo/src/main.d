@@ -53,8 +53,10 @@ class TestScene: BaseScene3D
     
     TextureAsset aTexCloud;
     
-    TextureAsset aTexGrass;
+    TextureAsset aTexGround;
+    TextureAsset aTexGroundNormal;
     TextureAsset aTexRock;
+    TextureAsset aTexRockNormal;
     
     OBJAsset aBuilding;
     OBJAsset aTerrain;
@@ -121,8 +123,10 @@ class TestScene: BaseScene3D
         
         aTexCloud = addTextureAsset("data/textures/clouds.png");
         
-        aTexGrass = addTextureAsset("data/textures/grass.png");
-        aTexRock = addTextureAsset("data/textures/rock.png");
+        aTexGround = addTextureAsset("data/textures/ground.png");
+        aTexGroundNormal = addTextureAsset("data/textures/ground-normal.png");
+        aTexRock = addTextureAsset("data/textures/rock_d.png");
+        aTexRockNormal = addTextureAsset("data/textures/rock_n.png");
         
         aBuilding = New!OBJAsset(assetManager);
         addAsset(aBuilding, "data/obj/castle.obj");
@@ -189,8 +193,10 @@ class TestScene: BaseScene3D
         
         auto mTerrain = createMaterial(terrb);
         mTerrain.roughness = 0.9f;
-        mTerrain.grass = aTexGrass.texture;
+        mTerrain.grass = aTexGround.texture;
         mTerrain.mounts = aTexRock.texture;
+        mTerrain.grassNormal = aTexGroundNormal.texture;
+        mTerrain.mountsNormal = aTexRockNormal.texture;
         
         auto matSky = createMaterial(skyb);
         
@@ -230,11 +236,12 @@ class TestScene: BaseScene3D
         eBuilding.drawable = aBuilding.mesh;
         eBuilding.material = mStone;
         
-        //Entity eImrod = createEntity3D();
-        //eImrod.material = matImrod;
-        //eImrod.drawable = aImrod.mesh;
-        //eImrod.position.x = -2.0f;
-        //eImrod.scaling = Vector3f(0.5, 0.5, 0.5);
+        Entity eImrod = createEntity3D();
+        eImrod.material = matImrod;
+        eImrod.drawable = aImrod.mesh;
+        eImrod.position.x = -2.0f;
+        eImrod.position.y = 0.6f;
+        eImrod.scaling = Vector3f(0.5, 0.5, 0.5);
         
         actor = New!Actor(iqm.model, assetManager);
         mrfixit = createEntity3D();

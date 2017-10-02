@@ -47,7 +47,7 @@ class TerrainBackend: GLSLMaterialBackend
         uniform mat4 shadowMatrix2;
         uniform mat4 shadowMatrix3;
         
-        const float texScale = 50.0;
+        const float texScale = 100.0;
         const float eyeSpaceNormalShift = 0.05;
     
         void main()
@@ -93,6 +93,9 @@ class TerrainBackend: GLSLMaterialBackend
         uniform sampler2D grassTexture;
         uniform sampler2D mountsTexture;
         
+        uniform sampler2D grassNormalTexture;
+        uniform sampler2D mountsNormalTexture;
+        
         uniform sampler2DArrayShadow shadowTextureArray;
         uniform float shadowTextureSize;
         uniform bool useShadows;
@@ -108,6 +111,20 @@ class TerrainBackend: GLSLMaterialBackend
         uniform vec4 fogColor;
         uniform float fogStart;
         uniform float fogEnd;
+        
+        mat3 cotangentFrame(in vec3 N, in vec3 p, in vec2 uv)
+        {
+            vec3 dp1 = dFdx(p);
+            vec3 dp2 = dFdy(p);
+            vec2 duv1 = dFdx(uv);
+            vec2 duv2 = dFdy(uv);
+            vec3 dp2perp = cross(dp2, N);
+            vec3 dp1perp = cross(N, dp1);
+            vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+            vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+            float invmax = inversesqrt(max(dot(T, T), dot(B, B)));
+            return mat3(T * invmax, B * invmax, N);
+        }
         
         float shadowLookup(in sampler2DArrayShadow depths, in float layer, in vec4 coord, in vec2 offset)
         {
@@ -147,14 +164,29 @@ class TerrainBackend: GLSLMaterialBackend
             vec3 Nw = normalize(worldNormal);
             vec3 E = normalize(-eyePosition);
             
+            mat3 TBN = cotangentFrame(N, eyePosition, texCoord);
+            vec3 tE = normalize(E * TBN);
+            
             vec3 cameraPosition = invViewMatrix[3].xyz;
             
-             // Roughness to blinn-phong specular power
+            float slope = pow(dot(Nw, vec3(0.0, 1.0, 0.0)), 5.0);
+            
+            // Normal mapping
+            vec3 tN1 = normalize(texture(grassNormalTexture, texCoord).rgb * 2.0 - 1.0);
+            tN1.y = -tN1.y;
+            vec3 N1 = normalize(TBN * tN1);
+
+            vec3 tN2 = normalize(texture(mountsNormalTexture, texCoord).rgb * 2.0 - 1.0);
+            tN2.y = -tN2.y;
+            vec3 N2 = normalize(TBN * tN1);
+            
+            // Roughness to blinn-phong specular power
             float gloss = 1.0 - roughness;
             float shininess = gloss * 128.0;
             
             // Sun light
-            float sunDiffBrightness = clamp(dot(N, sunDirection), 0.0, 1.0);
+            float sunDiffBrightness1 = clamp(dot(N1, sunDirection), 0.0, 1.0);
+            float sunDiffBrightness2 = clamp(dot(N2, sunDirection), 0.0, 1.0);
             
             // Calculate shadow from 3 cascades
             float s1, s2, s3;
@@ -211,12 +243,13 @@ class TerrainBackend: GLSLMaterialBackend
             float fogDistance = gl_FragCoord.z / gl_FragCoord.w;
             float fogFactor = clamp((fogEnd - fogDistance) / (fogEnd - fogStart), 0.0, 1.0);
             
-            float slope = pow(dot(Nw, vec3(0.0, 1.0, 0.0)), 5.0);
             vec3 colorGrass = texture(grassTexture, texCoord).rgb; //vec3(0.0, 0.5, 0.0);
             vec3 colorMounts = texture(mountsTexture, texCoord).rgb; 
             vec3 diffColor = mix(colorMounts, colorGrass, slope);
             
-            vec3 objColor = diffColor * (environmentColor.rgb + pointDiffSum + sunColor * sunDiffBrightness * s1);
+            float diffuse = mix(sunDiffBrightness2, sunDiffBrightness1, slope);
+            
+            vec3 objColor = diffColor * (environmentColor.rgb + pointDiffSum + sunColor * diffuse * s1);
             
             vec3 fragColor = mix(fogColor.rgb, objColor, fogFactor);
             
@@ -249,6 +282,7 @@ class TerrainBackend: GLSLMaterialBackend
     
     GLint grassTextureLoc;
     GLint mountsTextureLoc;
+    GLint grassNormalTextureLoc;
     
     GLint invLightDomainSizeLoc;
     GLint clusterTextureLoc;
@@ -288,6 +322,7 @@ class TerrainBackend: GLSLMaterialBackend
             
         grassTextureLoc = glGetUniformLocation(shaderProgram, "grassTexture");
         mountsTextureLoc = glGetUniformLocation(shaderProgram, "mountsTexture");
+        grassNormalTextureLoc = glGetUniformLocation(shaderProgram, "grassNormalTexture");
         
         clusterTextureLoc = glGetUniformLocation(shaderProgram, "lightClusterTexture");
         invLightDomainSizeLoc = glGetUniformLocation(shaderProgram, "invLightDomainSize");
@@ -304,6 +339,10 @@ class TerrainBackend: GLSLMaterialBackend
         auto imounts = "mounts" in mat.inputs;
         if (imounts is null)
             imounts = mat.setInput("mounts", Color4f(0.2f, 0.2f, 0.2f, 1.0f));
+            
+        auto igrassNormal = "grassNormal" in mat.inputs;
+        if (igrassNormal is null)
+            igrassNormal = mat.setInput("grassNormal", Color4f(0.0f, 0.0f, 0.0f, 0.0f));
             
         bool fogEnabled = boolProp(mat, "fogEnabled");
         bool shadowsEnabled = boolProp(mat, "shadowsEnabled");
@@ -368,6 +407,16 @@ class TerrainBackend: GLSLMaterialBackend
         imounts.texture.bind();
         glUniform1i(mountsTextureLoc, 1);
         
+        // Texture 2 - grass normal map
+        if (igrassNormal.texture is null)
+        {
+            Color4f color = Color4f(0.5f, 0.5f, 1.0f, 0.0f); // default normal pointing upwards
+            igrassNormal.texture = makeOnePixelTexture(mat, color);
+        }
+        glActiveTexture(GL_TEXTURE2);
+        igrassNormal.texture.bind();
+        glUniform1i(grassNormalTextureLoc, 2);
+        
         // Texture 5 - shadow map cascades (3 layer texture array)
         if (shadowMap && shadowsEnabled)
         {
@@ -412,12 +461,16 @@ class TerrainBackend: GLSLMaterialBackend
     {
         auto igrass = "grass" in mat.inputs;
         auto imounts = "mounts" in mat.inputs;
+        auto igrassNormal = "grassNormal" in mat.inputs;
         
         glActiveTexture(GL_TEXTURE0);
         igrass.texture.unbind();
         
         glActiveTexture(GL_TEXTURE1);
         imounts.texture.unbind();
+        
+        glActiveTexture(GL_TEXTURE2);
+        igrassNormal.texture.unbind();
         
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
