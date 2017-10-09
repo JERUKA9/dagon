@@ -46,6 +46,7 @@ public
     import dagon.graphics.clustered;
     import dagon.graphics.framebuffer;
     import dagon.graphics.postproc;
+    import dagon.graphics.particles;
     
     import dagon.graphics.materials.generic;
     import dagon.graphics.materials.bp;

@@ -96,6 +96,11 @@ class ShadelessBackend: GLSLMaterialBackend
     
     override void unbind(GenericMaterial mat)
     {
+        auto idiffuse = "diffuse" in mat.inputs;
+        
+        glActiveTexture(GL_TEXTURE0);
+        idiffuse.texture.unbind();
+    
         glUseProgram(0);
         glDisable(GL_BLEND);
     }

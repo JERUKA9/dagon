@@ -58,6 +58,8 @@ class TestScene: BaseScene3D
     TextureAsset aTexRock;
     TextureAsset aTexRockNormal;
     
+    TextureAsset aTexParticle;
+    
     OBJAsset aBuilding;
     OBJAsset aTerrain;
     OBJAsset aImrod;
@@ -127,6 +129,8 @@ class TestScene: BaseScene3D
         aTexGroundNormal = addTextureAsset("data/textures/ground-normal.png");
         aTexRock = addTextureAsset("data/textures/rock_d.png");
         aTexRockNormal = addTextureAsset("data/textures/rock_n.png");
+        
+        aTexParticle = addTextureAsset("data/textures/particle.png");
         
         aBuilding = New!OBJAsset(assetManager);
         addAsset(aBuilding, "data/obj/castle.obj");
@@ -272,6 +276,14 @@ class TestScene: BaseScene3D
         gSensor = New!GeomBox(Vector3f(0.5f, 0.5f, 0.5f));
         character = New!CharacterController(world, fpview.camera.position, 80.0f, gSphere, assetManager);
         character.createSensor(gSensor, Vector3f(0.0f, -0.75f, 0.0f));
+        
+        auto mParticles = createMaterial(shadeless);
+        mParticles.diffuse = aTexParticle.texture;
+        auto eParticles = createEntity3D(true);
+        eParticles.position.x = 4.0f;
+        eParticles.position.y = 0.6f;
+        ParticleSystem ps = New!ParticleSystem(eParticles, 20, view);
+        ps.material = mParticles;
         
         auto text = New!TextLine(aFont.font, "Press <LMB> to switch mouse look, WASD to move, spacebar to jump, <RMB> to create a light, arrow keys to rotate the sun", assetManager);
         text.color = Color4f(1.0f, 1.0f, 1.0f, 0.7f);
@@ -421,6 +433,7 @@ class TestScene: BaseScene3D
         fb.bind();
         prepareRender();        
         renderEntities3D(&rc3d);
+        renderTransparentEntities3D(&rc3d);
         fb.unbind();
         
         // Render fxaa quad to fbAA

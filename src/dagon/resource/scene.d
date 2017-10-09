@@ -334,6 +334,7 @@ class BaseScene3D: Scene
     View view;
 
     DynamicArray!Entity entities3D;
+    DynamicArray!Entity entities3DTransp;
     DynamicArray!Entity entities2D;
     
     ShapeQuad loadingProgressBar;
@@ -370,10 +371,13 @@ class BaseScene3D: Scene
         return e;
     }
     
-    Entity createEntity3D()
+    Entity createEntity3D(bool transparent = false)
     {
         Entity e = New!Entity(eventManager, assetManager);
-        entities3D.append(e);
+        if (transparent)
+            entities3DTransp.append(e);
+        else
+            entities3D.append(e);
         return e;
     }
     
@@ -393,6 +397,7 @@ class BaseScene3D: Scene
     override void onRelease()
     {
         entities3D.free();
+        entities3DTransp.free();
         entities2D.free();
     }
     
@@ -438,6 +443,9 @@ class BaseScene3D: Scene
     {
         foreach(e; entities3D)
             e.processEvents();
+            
+        foreach(e; entities3DTransp)
+            e.processEvents();
 
         foreach(e; entities2D)
             e.processEvents();
@@ -458,6 +466,9 @@ class BaseScene3D: Scene
 
             foreach(e; entities3D)
                 e.update(fixedTimeStep);
+                
+            foreach(e; entities3DTransp)
+                e.update(fixedTimeStep);
 
             foreach(e; entities2D)
                 e.update(fixedTimeStep);
@@ -471,6 +482,13 @@ class BaseScene3D: Scene
     {
         glEnable(GL_DEPTH_TEST);
         foreach(e; entities3D)
+            e.render(rc);
+    }
+    
+    void renderTransparentEntities3D(RenderingContext* rc)
+    {
+        glEnable(GL_DEPTH_TEST);
+        foreach(e; entities3DTransp)
             e.render(rc);
     }
 
@@ -495,6 +513,7 @@ class BaseScene3D: Scene
     {     
         prepareRender();
         renderEntities3D(&rc3d);
+        renderTransparentEntities3D(&rc3d);
         renderEntities2D(&rc2d);
     } 
 }

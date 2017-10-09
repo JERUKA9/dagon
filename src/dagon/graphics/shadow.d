@@ -204,8 +204,8 @@ class CascadedShadowMap: Owner, Drawable
     Material sm;
     
     float projSize1 = 10.0f;
-    float projSize2 = 30.0f;
-    float projSize3 = 100.0f;
+    float projSize2 = 50.0f;
+    float projSize3 = 400.0f;
     
     float zStart = -100.0f;
     float zEnd = 100.0f;
@@ -321,6 +321,10 @@ class CascadedShadowMap: Owner, Drawable
         foreach(e; scene.entities3D)
             if (e.castShadow)
                 e.render(&rcLocal);
+                
+        foreach(e; scene.entities3DTransp)
+            if (e.castShadow)
+                e.render(&rcLocal);
          
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer2);
 
@@ -336,6 +340,10 @@ class CascadedShadowMap: Owner, Drawable
         foreach(e; scene.entities3D)
             if (e.castShadow)
                 e.render(&rcLocal);
+                
+        foreach(e; scene.entities3DTransp)
+            if (e.castShadow)
+                e.render(&rcLocal);
         
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer3);
 
@@ -349,6 +357,10 @@ class CascadedShadowMap: Owner, Drawable
         rcLocal.normalMatrix = rcLocal.invViewMatrix.transposed;
 
         foreach(e; scene.entities3D)
+            if (e.castShadow)
+                e.render(&rcLocal);
+                
+        foreach(e; scene.entities3DTransp)
             if (e.castShadow)
                 e.render(&rcLocal);
         

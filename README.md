@@ -18,6 +18,7 @@ Currently Dagon/gl33 has the following features:
 * Normal/parallax mapping, parallax occlusion mapping
 * Cascaded shadow maps
 * Dynamic skydome with sun and day/night cycle
+* Particle system
 * RTT, post-processing filters (FXAA, lens distortion)
 * UTF-8 text rendering using TTF fonts via Freetype
 * Ownership memory model - every object belongs to some object (owner), and deleting the owner will delete all of its owned objects. This allows semi-automatic memory management - you have to manually delete only root owners
